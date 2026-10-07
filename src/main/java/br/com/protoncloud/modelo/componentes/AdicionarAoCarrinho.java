@@ -6,7 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import br.com.protoncloud.modelo.apoio.Componente;
-import br.com.protoncloud.modelo.paginas.PaginaDeProdutos;
+import br.com.protoncloud.modelo.web.PaginaDeProdutos;
 
 /** AdicionarAoCarrinho: adiciona o produto pelo nome e devolve o preço dele. */
 public class AdicionarAoCarrinho implements Componente {

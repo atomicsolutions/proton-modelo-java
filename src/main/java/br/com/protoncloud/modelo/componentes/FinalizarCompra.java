@@ -6,10 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import br.com.protoncloud.modelo.apoio.Componente;
-import br.com.protoncloud.modelo.apoio.Evidencias;
-import br.com.protoncloud.modelo.paginas.PaginaDeCheckout;
-import br.com.protoncloud.modelo.paginas.PaginaDeProdutos;
-import br.com.protoncloud.modelo.paginas.PaginaDoCarrinho;
+import br.com.protoncloud.modelo.web.PaginaDeCheckout;
+import br.com.protoncloud.modelo.web.PaginaDeProdutos;
+import br.com.protoncloud.modelo.web.PaginaDoCarrinho;
+import br.com.protoncloud.modelo.web.SessaoWeb;
 
 /** FinalizarCompra: preenche a entrega, confere o total dos itens e conclui a compra. */
 public class FinalizarCompra implements Componente {
@@ -32,7 +32,7 @@ public class FinalizarCompra implements Componente {
         }
 
         String total = checkout.total();
-        Evidencias.printDaTela("resumo-da-compra");
+        SessaoWeb.printDaTela("resumo-da-compra");
         checkout.concluir();
         log.info("Compra concluída: total {}", total);
 

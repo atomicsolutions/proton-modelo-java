@@ -22,7 +22,8 @@ import com.google.gson.JsonParser;
  * Roda um cenário a partir de um arquivo JSON, sem o Proton.
  * <p>
  * O arquivo tem o mesmo formato de um dataset do Proton: os passos em ordem, cada um com o
- * componente e os parâmetros.
+ * componente e os parâmetros. Os passos podem ser de plataformas diferentes (web, API):
+ * cada sessão abre quando o primeiro passo dela pede.
  * </p>
  * <pre>{@code
  * {
@@ -74,8 +75,15 @@ public final class Cenarios {
                 }
             }
 
+            Componente implementacao = Componentes.localizar(componente);
+
+            if (implementacao == null) {
+                throw new IllegalArgumentException("O componente \"" + componente + "\" não existe: crie a classe "
+                    + Componentes.PACOTE + "." + Componentes.nomeDaClasse(componente) + ".");
+            }
+
             log.info("Passo {}: {}", ++numero, componente);
-            Map<String, String> geradas = Componentes.localizar(componente).executar(parametros);
+            Map<String, String> geradas = implementacao.executar(parametros);
 
             if (geradas != null) {
                 saidas.putAll(geradas);
@@ -94,7 +102,7 @@ public final class Cenarios {
         int falhas = 0;
 
         for (Path arquivo : arquivos) {
-            try (var navegador = Navegador.abrir()) {
+            try (var sessoes = Sessoes.abrir()) {
                 executar(arquivo);
             } catch (Exception | AssertionError e) {
                 log.error("Falhou: {}", arquivo, e);

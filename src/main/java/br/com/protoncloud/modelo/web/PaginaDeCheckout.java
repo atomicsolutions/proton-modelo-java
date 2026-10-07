@@ -1,14 +1,12 @@
-package br.com.protoncloud.modelo.paginas;
+package br.com.protoncloud.modelo.web;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
 import com.microsoft.playwright.Page;
 
-import br.com.protoncloud.modelo.apoio.Navegador;
-
 public class PaginaDeCheckout {
 
-    private final Page pagina = Navegador.pagina();
+    private final Page pagina = SessaoWeb.pagina();
 
     public void preencherEntrega(String nome, String sobrenome, String cep) {
         pagina.locator("[data-test=\"firstName\"]").fill(nome);

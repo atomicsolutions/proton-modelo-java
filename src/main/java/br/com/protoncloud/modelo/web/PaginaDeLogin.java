@@ -1,4 +1,4 @@
-package br.com.protoncloud.modelo.paginas;
+package br.com.protoncloud.modelo.web;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -6,14 +6,13 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 
 import br.com.protoncloud.modelo.apoio.Config;
-import br.com.protoncloud.modelo.apoio.Navegador;
 
 public class PaginaDeLogin {
 
-    private final Page pagina = Navegador.pagina();
+    private final Page pagina = SessaoWeb.pagina();
 
     public PaginaDeLogin abrir() {
-        Navegador.irPara(Config.urlDaLoja());
+        SessaoWeb.irPara(Config.urlDaLoja());
         return this;
     }
 

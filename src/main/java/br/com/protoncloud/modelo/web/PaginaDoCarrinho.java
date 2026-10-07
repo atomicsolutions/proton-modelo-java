@@ -1,12 +1,10 @@
-package br.com.protoncloud.modelo.paginas;
+package br.com.protoncloud.modelo.web;
 
 import com.microsoft.playwright.Page;
 
-import br.com.protoncloud.modelo.apoio.Navegador;
-
 public class PaginaDoCarrinho {
 
-    private final Page pagina = Navegador.pagina();
+    private final Page pagina = SessaoWeb.pagina();
 
     public void irParaOCheckout() {
         pagina.locator("[data-test=\"checkout\"]").click();

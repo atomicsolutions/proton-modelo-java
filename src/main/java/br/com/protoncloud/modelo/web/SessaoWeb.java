@@ -1,5 +1,6 @@
-package br.com.protoncloud.modelo.apoio;
+package br.com.protoncloud.modelo.web;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -13,30 +14,29 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
 
-/**
- * O navegador da automação: um por cenário, compartilhado pelos passos dele.
- *
- * <pre>{@code
- * try (var navegador = Navegador.abrir()) {
- *     ... // os passos usam Navegador.pagina()
- * }
- * }</pre>
- */
-public final class Navegador implements AutoCloseable {
+import br.com.protoncloud.modelo.apoio.Config;
+import br.com.protoncloud.modelo.apoio.Evidencias;
+import br.com.protoncloud.modelo.apoio.Sessao;
+import br.com.protoncloud.modelo.apoio.Sessoes;
 
-    private static final Logger log = LoggerFactory.getLogger(Navegador.class);
+/**
+ * A sessão web: um navegador (Playwright) por cenário, compartilhado pelos passos dele.
+ * As páginas usam {@link #pagina()}; o navegador abre na primeira vez que alguém pede.
+ */
+public final class SessaoWeb implements Sessao {
+
+    private static final Logger log = LoggerFactory.getLogger(SessaoWeb.class);
     private static final int TENTATIVAS = 4;
 
     /** Queda de conexão (net::...) e a página de erro do Chrome interrompendo a navegação seguinte. */
     private static final List<String> QUEDAS_DE_REDE = List.of("net::", "interrupted by another navigation");
 
-    private static Page pagina;
-
     private final Playwright playwright;
     private final Browser browser;
     private final BrowserContext contexto;
+    private final Page pagina;
 
-    private Navegador() {
+    private SessaoWeb() {
         var criacao = new Playwright.CreateOptions();
         var opcoes = new BrowserType.LaunchOptions().setHeadless(Config.headless());
 
@@ -54,9 +54,18 @@ public final class Navegador implements AutoCloseable {
         pagina.setDefaultTimeout(Config.timeoutMs());
     }
 
-    /** Abre o navegador para os passos de um cenário; feche com try-with-resources. */
-    public static Navegador abrir() {
-        return new Navegador();
+    private static SessaoWeb sessao() {
+        return Sessoes.obter("web", SessaoWeb.class, SessaoWeb::new);
+    }
+
+    /** A página do navegador do cenário. */
+    public static Page pagina() {
+        return sessao().pagina;
+    }
+
+    /** Grava um print da página inteira na pasta de evidências. */
+    public static Path printDaTela(String nome) {
+        return sessao().evidencia(nome);
     }
 
     /** Abre o endereço, tentando de novo, com espera crescente, quando a rede cai. */
@@ -79,20 +88,20 @@ public final class Navegador implements AutoCloseable {
         }
     }
 
-    /** A página aberta, para as páginas da automação ({@code paginas}). */
-    public static Page pagina() {
-        if (pagina == null) {
-            throw new IllegalStateException("Navegador fechado: rode os passos dentro de Navegador.abrir().");
-        }
-
-        return pagina;
+    @Override
+    public Path evidencia(String nome) {
+        Path arquivo = Evidencias.arquivo(nome, "png");
+        pagina.screenshot(new Page.ScreenshotOptions().setPath(arquivo).setFullPage(true));
+        return Evidencias.registrar(arquivo);
     }
 
     @Override
     public void close() {
-        pagina = null;
-        contexto.close();
-        browser.close();
-        playwright.close();
+        try {
+            contexto.close();
+            browser.close();
+        } finally {
+            playwright.close();
+        }
     }
 }

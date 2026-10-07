@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,6 +40,14 @@ public final class Config {
 
     public static double timeoutMs() {
         return Double.parseDouble(valor("TIMEOUT_MS", "15000"));
+    }
+
+    public static String urlDaApiDeCep() {
+        return valor("URL_DA_API_DE_CEP", "https://viacep.com.br/ws").replaceAll("/+$", "");
+    }
+
+    public static Duration timeoutDaApi() {
+        return Duration.ofMillis(Math.round(Double.parseDouble(valor("TIMEOUT_DA_API_S", "15")) * 1000));
     }
 
     public static Path pastaDeEvidencias() {

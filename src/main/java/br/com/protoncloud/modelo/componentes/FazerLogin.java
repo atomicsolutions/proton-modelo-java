@@ -6,8 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import br.com.protoncloud.modelo.apoio.Componente;
-import br.com.protoncloud.modelo.paginas.PaginaDeLogin;
-import br.com.protoncloud.modelo.paginas.PaginaDeProdutos;
+import br.com.protoncloud.modelo.web.PaginaDeLogin;
+import br.com.protoncloud.modelo.web.PaginaDeProdutos;
 
 /** FazerLogin: abre a loja e entra com usuário e senha. */
 public class FazerLogin implements Componente {

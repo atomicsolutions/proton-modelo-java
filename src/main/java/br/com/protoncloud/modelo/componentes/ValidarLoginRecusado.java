@@ -6,8 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import br.com.protoncloud.modelo.apoio.Componente;
-import br.com.protoncloud.modelo.apoio.Evidencias;
-import br.com.protoncloud.modelo.paginas.PaginaDeLogin;
+import br.com.protoncloud.modelo.web.PaginaDeLogin;
+import br.com.protoncloud.modelo.web.SessaoWeb;
 
 /** ValidarLoginRecusado: tenta entrar e confere a mensagem de erro do login recusado. */
 public class ValidarLoginRecusado implements Componente {
@@ -25,7 +25,7 @@ public class ValidarLoginRecusado implements Componente {
             throw new AssertionError("Mensagem \"" + mensagem + "\"; o esperado era conter \"" + esperada + "\"");
         }
 
-        Evidencias.printDaTela("login-recusado");
+        SessaoWeb.printDaTela("login-recusado");
         log.info("Login recusado, como esperado: {}", mensagem);
         return null;
     }

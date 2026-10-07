@@ -1,6 +1,12 @@
 {
-  "descricao": "Compra com sucesso: login, mochila no carrinho e compra concluída, conferindo o preço do item no total.",
+  "descricao": "Compra com sucesso (API e web): consulta o CEP de entrega, põe a mochila no carrinho e conclui a compra, conferindo o preço do item no total.",
   "passos": [
+    {
+      "componente": "ConsultarCep",
+      "parametros": {
+        "in_cep": "01310-100"
+      }
+    },
     {
       "componente": "FazerLogin",
       "parametros": {
@@ -19,7 +25,7 @@
       "parametros": {
         "in_nome": "Ana",
         "in_sobrenome": "Souza",
-        "in_cep": "01310-100",
+        "in_cep": "${out_cep}",
         "in_preco_esperado": "${out_preco}"
       }
     }

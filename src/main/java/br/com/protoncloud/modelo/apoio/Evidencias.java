@@ -1,5 +1,8 @@
 package br.com.protoncloud.modelo.apoio;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -7,13 +10,16 @@ import java.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.microsoft.playwright.Page;
-
 /**
- * Evidências: prints gravados na pasta de evidências ({@code PASTA_DE_EVIDENCIAS}).
+ * Evidências: prints e arquivos gravados na pasta de evidências ({@code PASTA_DE_EVIDENCIAS}).
  * <p>
  * Fora do Proton, ficam na pasta. Numa execução do Proton, o que aparece na pasta durante
  * um passo sobe para aquele passo. A automação não precisa saber onde está rodando.
+ * </p>
+ * <p>
+ * Cada plataforma grava a evidência dela ({@code SessaoWeb.printDaTela},
+ * {@code SessaoApi.evidencia}). Quando um passo falha, {@link #daFalha} pede a evidência de
+ * todas as sessões abertas.
  * </p>
  */
 public final class Evidencias {
@@ -24,11 +30,31 @@ public final class Evidencias {
     private Evidencias() {
     }
 
-    /** Grava um print da página inteira e devolve o caminho do arquivo. */
-    public static Path printDaTela(String nome) {
-        Path arquivo = Config.pastaDeEvidencias().resolve(LocalDateTime.now().format(CARIMBO) + "-" + nome + ".png");
-        Navegador.pagina().screenshot(new Page.ScreenshotOptions().setPath(arquivo).setFullPage(true));
-        log.info("Print: {}", arquivo.getFileName());
+    /** Um caminho novo na pasta de evidências, com data e hora no nome. */
+    public static Path arquivo(String nome, String extensao) {
+        try {
+            Files.createDirectories(Config.pastaDeEvidencias());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        return Config.pastaDeEvidencias().resolve(LocalDateTime.now().format(CARIMBO) + "-" + nome + "." + extensao);
+    }
+
+    public static Path registrar(Path arquivo) {
+        log.info("Evidência: {}", arquivo.getFileName());
         return arquivo;
+    }
+
+    /** A evidência de cada sessão aberta, quando um passo falha. */
+    public static void daFalha(String componente) {
+        for (var sessao : Sessoes.todas().entrySet()) {
+            try {
+                sessao.getValue().evidencia("falha-" + componente + "-" + sessao.getKey());
+            } catch (RuntimeException e) {
+                // Sem evidência (navegador já fechado, por exemplo), o erro do passo é o que importa.
+                log.warn("Não deu para gravar a evidência de {} na falha de {}", sessao.getKey(), componente);
+            }
+        }
     }
 }

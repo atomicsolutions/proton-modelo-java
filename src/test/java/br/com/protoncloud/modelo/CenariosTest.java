@@ -9,7 +9,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import br.com.protoncloud.modelo.apoio.Cenarios;
 import br.com.protoncloud.modelo.apoio.Config;
-import br.com.protoncloud.modelo.apoio.Navegador;
+import br.com.protoncloud.modelo.apoio.Sessoes;
 
 /**
  * Os cenários da pasta {@code cenarios/}, sem o Proton: um teste por arquivo.
@@ -33,7 +33,7 @@ class CenariosTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cenarios")
     void cenario(Path arquivo) throws Exception {
-        try (var navegador = Navegador.abrir()) {
+        try (var sessoes = Sessoes.abrir()) {
             Cenarios.executar(arquivo);
         }
     }
