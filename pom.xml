@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>br.com.protoncloud</groupId>
+    <artifactId>proton-modelo-java</artifactId>
+    <version>1.0.0</version>
+    <name>Projeto modelo Java</name>
+    <description>Projeto modelo de automação: roda sozinho, pelo JUnit, ou pelo Proton.</description>
+
+    <licenses>
+        <license>
+            <name>MIT</name>
+            <url>https://opensource.org/license/mit</url>
+        </license>
+    </licenses>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <playwright.version>1.63.0</playwright.version>
+        <gson.version>2.14.0</gson.version>
+        <slf4j.version>2.0.20</slf4j.version>
+        <junit.version>6.1.3</junit.version>
+        <protoncloud-sdk.version>5.3.0</protoncloud-sdk.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- A automação (src/main): navegador, leitura dos cenários e log. -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>${gson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>${slf4j.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Só os testes enxergam daqui para baixo. -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.16.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.6.0</version>
+            </plugin>
+            <!-- Roda cenários sem JUnit e sem Proton, como um robô comum:
+                 mvn compile exec:java -Dexec.args="cenarios/compra-com-sucesso.json" -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.6.4</version>
+                <configuration>
+                    <mainClass>br.com.protoncloud.modelo.apoio.Cenarios</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <!--
+        O Proton fica num perfil que só liga numa execução do Proton: o runner roda
+        "mvn test -DidDatasetRun=<id> -Dtest=TestProtonScript". Fora dele, o projeto
+        não compila o ponto de entrada do Proton (src/proton/java) nem baixa a SDK.
+
+        Sem o Proton, apague este perfil e a pasta src/proton: o resto não muda.
+    -->
+    <profiles>
+        <profile>
+            <id>proton</id>
+            <activation>
+                <property>
+                    <name>idDatasetRun</name>
+                </property>
+            </activation>
+
+            <!-- A Proton Cloud SDK vem do GitHub Packages, que pede um token do GitHub
+                 com read:packages no ~/.m2/settings.xml (servidor "proton-lib"). -->
+            <repositories>
+                <repository>
+                    <id>proton-lib</id>
+                    <url>https://maven.pkg.github.com/atomicsolutions/proton-lib</url>
+                </repository>
+            </repositories>
+
+            <dependencies>
+                <dependency>
+                    <groupId>br.com.protoncloud</groupId>
+                    <artifactId>protoncloud-sdk</artifactId>
+                    <version>${protoncloud-sdk.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>3.6.2</version>
+                        <executions>
+                            <execution>
+                                <id>ponto-de-entrada-do-proton</id>
+                                <phase>generate-test-sources</phase>
+                                <goals>
+                                    <goal>add-test-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>src/proton/java</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

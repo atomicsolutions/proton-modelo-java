@@ -1,0 +1,9 @@
+target/
+.env
+evidencias/
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/

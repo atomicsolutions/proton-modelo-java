@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # Senha pública dos usuários de demonstração da loja (aparece na página de login).
+  SENHA_DA_LOJA: secret_sauce
+  # O Chrome já vem instalado na imagem ubuntu-latest: a Playwright não baixa navegador.
+  CANAL_DO_NAVEGADOR: chrome
+
+jobs:
+  cenarios:
+    # Sem o perfil proton: é também a prova de que a automação roda sem o Proton.
+    name: Cenários (sem o Proton)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Nada fora de src/proton importa a SDK do Proton
+        run: |
+          if grep -rn "br.com.atomicsolutions" src/main src/test; then exit 1; fi
+      - run: mvn -B test
+
+  ponto-de-entrada-do-proton:
+    # Compila o TestProtonScript com a SDK, que vem do GitHub Packages. O pacote
+    # protoncloud-sdk precisa dar acesso de leitura a este repositório (Package
+    # settings > Manage Actions access).
+    name: Ponto de entrada do Proton
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          server-id: proton-lib
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+      - run: mvn -B test-compile -DidDatasetRun=0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
