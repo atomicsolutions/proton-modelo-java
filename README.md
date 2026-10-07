@@ -29,11 +29,14 @@ Na primeira execução, a Playwright baixa os navegadores. Para usar o Chrome ou
 máquina, sem download, ponha `CANAL_DO_NAVEGADOR=chrome` (ou `msedge`) no `.env`. Para ver
 o navegador trabalhando, `HEADLESS=false`.
 
-Como robô, sem JUnit (sem argumento, roda todos os cenários):
+Outros jeitos de rodar:
 
 ```bash
-mvn compile exec:java -Dexec.args="cenarios/compra-com-sucesso.json"
+mvn test -Dcenario=compra                                             # só os cenários com "compra" no nome do arquivo
+mvn compile exec:java -Dexec.args="cenarios/compra-com-sucesso.json"  # como robô, sem JUnit
 ```
+
+Sem argumento, o `exec:java` roda todos os cenários.
 
 Os prints ficam na pasta `evidencias/`.
 

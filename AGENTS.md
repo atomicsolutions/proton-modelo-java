@@ -32,7 +32,7 @@ robô (`mvn compile exec:java`) ou pelo Proton. Responda e escreva em português
 
 1. Escreva as ações de tela na página (`paginas/`), reaproveitando as que existem.
 2. Escreva o componente em `componentes/`.
-3. Use-o num cenário de `cenarios/` e rode `mvn test` até passar.
+3. Use-o num cenário de `cenarios/` e rode `mvn test -Dcenario=<cenario>` até passar.
 4. Se houver conector MCP do Proton, cadastre ou atualize o componente no sistema ligado a
    este repositório, com o mesmo nome e os mesmos parâmetros, e documente objetivo e
    resultado esperado.
@@ -46,4 +46,5 @@ criptografado.
 ## Comandos
 
 - `mvn test`: roda todos os cenários.
+- `mvn test -Dcenario=compra`: roda os cenários com "compra" no nome do arquivo.
 - `mvn compile exec:java -Dexec.args="cenarios/<arquivo>.json"`: roda um cenário sem JUnit.
