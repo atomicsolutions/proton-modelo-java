@@ -2,6 +2,8 @@ package br.com.protoncloud.modelo;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.Test;
 
 import br.com.atomicsolutions.proton.ProtonComponentRunner;
@@ -32,6 +34,11 @@ class TestProtonScript {
     void executar() throws Exception {
         assumeTrue(System.getProperty("idDatasetRun") != null,
             "Só roda numa execução do Proton (-DidDatasetRun). Fora dele, os cenários rodam no CenariosTest.");
+
+        // O runner pode rodar várias execuções ao mesmo tempo, na mesma pasta do projeto: cada
+        // uma grava as evidências numa subpasta própria, senão um passo sobe o print da outra.
+        Path evidencias = Config.pastaDeEvidencias().resolve(System.getProperty("idDatasetRun"));
+        System.setProperty("PASTA_DE_EVIDENCIAS", evidencias.toString());
 
         try (var sessoes = Sessoes.abrir()) {
             ProtonComponentRunner.of(TestProtonScript::passo)
