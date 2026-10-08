@@ -1,5 +1,7 @@
 package br.com.protoncloud.modelo;
 
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -33,6 +35,9 @@ class CenariosTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cenarios")
     void cenario(Path arquivo) throws Exception {
+        List<String> faltam = Cenarios.requisitosQueFaltam(Cenarios.carregar(arquivo));
+        assumeTrue(faltam.isEmpty(), () -> "falta " + String.join(", ", faltam));
+
         try (var sessoes = Sessoes.abrir()) {
             Cenarios.executar(arquivo);
         }

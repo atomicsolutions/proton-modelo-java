@@ -1,20 +1,20 @@
 # Regras do projeto para agentes de IA
 
 Projeto de automação em Java 21 com Maven e JUnit 6, com mais de uma plataforma no mesmo
-cenário: web (Playwright) e API (`java.net.http` e Gson). Roda pelo JUnit, como robô
+cenário: web (Playwright), API (`java.net.http` e Gson) e mobile Android (Appium). Roda pelo JUnit, como robô
 (`mvn compile exec:java`) ou pelo Proton. SAP GUI e desktop Windows ficam no projeto modelo
 Python. Responda e escreva em português do Brasil.
 
 ## Onde fica cada coisa
 
 - `src/main/java/.../componentes/`: uma classe por componente, de qualquer plataforma, que implementa `Componente`.
-- `src/main/java/.../web/` e `api/`: um pacote por plataforma, com a sessão (`SessaoWeb`,
-  `SessaoApi`) e as páginas e clientes. Seletores e endereços de API ficam só aqui.
+- `src/main/java/.../web/`, `api/` e `mobile/`: um pacote por plataforma, com a sessão
+  (`SessaoWeb`, `SessaoApi`, `SessaoMobile`) e as páginas, clientes e telas. Seletores, ids
+  de tela e endereços de API ficam só aqui.
 - `src/main/java/.../apoio/`: configuração, sessões, evidências e execução dos cenários. Mude só se a tarefa pedir.
 - `src/test/java/.../CenariosTest.java`: roda os cenários da pasta `cenarios/`.
-- `src/proton/java/.../TestProtonScript.java`: ponto de entrada do Proton. Não mude o nome
-  da classe: o runner procura `TestProtonScript`. Só entra no build com o perfil `proton`
-  (`-DidDatasetRun`).
+- `src/test/java/.../TestProtonScript.java`: ponto de entrada do Proton, o único que importa
+  a SDK. Não mude o nome da classe: o runner procura `TestProtonScript`.
 - `cenarios/`: cenários em JSON, no formato de um dataset do Proton.
 
 ## Contrato do componente
@@ -32,14 +32,16 @@ Python. Responda e escreva em português do Brasil.
 - O componente não abre nem fecha sessão: usa as páginas e os clientes, que pedem a sessão
   da plataforma deles. As sessões abrem na primeira vez e fecham no fim do cenário.
 - Log com SLF4J (`LoggerFactory.getLogger(...)`), sem `System.out`.
-- Evidência com `SessaoWeb.printDaTela("nome")` ou `SessaoApi.evidenciaDaUltimaResposta("nome")`.
+- Evidência com `SessaoWeb.printDaTela("nome")`, `SessaoMobile.printDaTela("nome")` ou
+  `SessaoApi.evidenciaDaUltimaResposta("nome")`.
   A evidência da falha é automática.
 
 ## Plataforma nova
 
 Crie o pacote da plataforma com uma classe que implemente `Sessao` (`evidencia(nome)` e
 `close()`) e métodos estáticos que peçam a sessão com
-`Sessoes.obter("<plataforma>", Classe.class, Classe::new)`, como `SessaoWeb` e `SessaoApi`.
+`Sessoes.obter("<plataforma>", Classe.class, Classe::new)`, como `SessaoWeb`, `SessaoApi` e
+`SessaoMobile`. Se o cenário precisar de algo da máquina, declare em `"requer"`.
 
 ## Ao criar ou mudar um componente
 

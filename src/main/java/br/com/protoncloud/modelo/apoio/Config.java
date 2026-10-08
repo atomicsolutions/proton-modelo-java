@@ -50,6 +50,33 @@ public final class Config {
         return Duration.ofMillis(Math.round(Double.parseDouble(valor("TIMEOUT_DA_API_S", "15")) * 1000));
     }
 
+    /** O endereço do Appium. Sem ele no ar no endereço local, a sessão mobile o inicia sozinha. */
+    public static String appiumUrl() {
+        return valor("APPIUM_URL", "http://127.0.0.1:4723").replaceAll("/+$", "");
+    }
+
+    /** O serial do aparelho (adb devices); vazio usa o primeiro conectado. */
+    public static String mobileDispositivo() {
+        return valor("MOBILE_DISPOSITIVO", null);
+    }
+
+    /** O caminho do .apk; vazio abre o app já instalado no aparelho (pacote e activity). */
+    public static String mobileApp() {
+        return valor("MOBILE_APP", null);
+    }
+
+    public static String mobilePacote() {
+        return valor("MOBILE_PACOTE", "com.saucelabs.mydemoapp.android");
+    }
+
+    public static String mobileActivity() {
+        return valor("MOBILE_ACTIVITY", ".view.activities.SplashActivity");
+    }
+
+    public static Duration timeoutMobile() {
+        return Duration.ofMillis(Math.round(Double.parseDouble(valor("TIMEOUT_MOBILE_S", "20")) * 1000));
+    }
+
     public static Path pastaDeEvidencias() {
         return Path.of(valor("PASTA_DE_EVIDENCIAS", "evidencias"));
     }

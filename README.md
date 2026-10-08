@@ -1,14 +1,15 @@
 # Projeto modelo Java
 
 Automação de exemplo com mais de uma plataforma no mesmo cenário: consulta um CEP numa API
-pública ([ViaCEP](https://viacep.com.br)) e faz uma compra na loja de testes
-[Swag Labs](https://www.saucedemo.com). Serve de ponto de partida para projetos novos de QA
-e de RPA.
+pública ([ViaCEP](https://viacep.com.br)), faz uma compra na loja de testes
+[Swag Labs](https://www.saucedemo.com) e põe o mesmo produto no carrinho de um app Android.
+Serve de ponto de partida para projetos novos de QA e de RPA.
 
 | Plataforma | Biblioteca | Pacote |
 |---|---|---|
 | Web | [Playwright](https://playwright.dev/java/) | `web` |
 | API | `java.net.http` (JDK) e [Gson](https://github.com/google/gson) | `api` |
+| Mobile (Android) | [Appium](https://appium.io) (java-client) | `mobile` |
 
 Para SAP GUI e desktop Windows, use o projeto modelo Python: o SAP GUI Scripting e a
 automação de desktop são nativos em Python (pywin32 e pywinauto), e em Java dependeriam de
@@ -21,10 +22,9 @@ O mesmo código roda de três jeitos:
 - **pelo [Proton](https://protoncloud.com.br)**, que dispara os mesmos componentes a partir
   de um dataset e guarda log, prints, saídas e resultado de cada execução.
 
-O Proton é opcional. Tudo o que é dele fica na pasta `src/proton` e no perfil `proton` do
-`pom.xml`, que só liga numa execução do Proton. Fora dele, o projeto nem baixa a SDK.
-Apague a pasta e o perfil, e o resto continua igual. A automação é sua, com ou sem a
-ferramenta.
+O Proton é opcional. Só uma classe do projeto conhece o Proton: o `TestProtonScript`.
+Apague essa classe, a dependência `protoncloud-sdk` e o repositório `protoncloud` do
+`pom.xml`, e o resto continua igual. A automação é sua, com ou sem a ferramenta.
 
 ## Rodar localmente
 
@@ -57,11 +57,11 @@ src/main/java/.../
   componentes/   uma classe por componente, de qualquer plataforma
   web/           sessão do navegador e páginas da loja (page objects)
   api/           sessão HTTP e clientes das APIs
+  mobile/        sessão do aparelho (Appium) e telas do app
   apoio/         configuração, sessões, evidências e a execução dos cenários
 src/test/java/.../
   CenariosTest.java       roda os cenários, sem o Proton
-src/proton/java/.../
-  TestProtonScript.java   o ponto de entrada do Proton (só entra no build no Proton)
+  TestProtonScript.java   o ponto de entrada do Proton (o único que importa a SDK)
 cenarios/                 os cenários em JSON, no mesmo formato de um dataset do Proton
 ```
 
@@ -74,18 +74,19 @@ só em `src/test`.
 
 ## Sessões
 
-Cada plataforma tem uma sessão: o navegador, o cliente HTTP. A sessão abre na primeira vez
+Cada plataforma tem uma sessão: o navegador, o cliente HTTP, o aparelho. A sessão abre na primeira vez
 que um passo pede e serve aos passos seguintes do mesmo cenário, mesmo quando eles são de
 outra plataforma. No fim do cenário, todas fecham, na ordem inversa, mesmo com erro. Um
 cenário só de API nem abre navegador.
 
 Os componentes não lidam com sessão: usam as páginas e os clientes, que pedem a sessão da
-plataforma deles (`SessaoWeb.pagina()`, `SessaoApi.get(...)`). Quando um passo falha, cada
-sessão aberta grava a evidência dela: o print da página e a última resposta da API.
+plataforma deles (`SessaoWeb.pagina()`, `SessaoApi.get(...)`, `SessaoMobile.driver()`).
+Quando um passo falha, cada sessão aberta grava a evidência dela: o print da página, a
+última resposta da API e o print da tela do aparelho.
 
-Para uma plataforma nova (mobile com Appium, por exemplo), crie o pacote dela com uma
-classe que implemente `Sessao` (`evidencia(nome)` e `close()`), e peça a sessão com
-`Sessoes.obter("nome", Classe.class, Classe::new)`. Use `web` e `api` como exemplo.
+Para uma plataforma nova, crie o pacote dela com uma classe que implemente `Sessao`
+(`evidencia(nome)` e `close()`), e peça a sessão com
+`Sessoes.obter("nome", Classe.class, Classe::new)`. Use `web`, `api` e `mobile` como exemplo.
 
 ## Criar um componente
 
@@ -116,8 +117,7 @@ As regras:
 - as saídas voltam num `Map`, com o prefixo `out_` (ou `null`, sem saída);
 - para falhar, lance uma exceção. O print da tela da falha é automático;
 - seletores, ações e chamadas ficam nas páginas e nos clientes, não no componente;
-- nada em `src/main` importa o Proton. O compilador garante: a SDK só existe no perfil
-  `proton`.
+- nada em `src/main` importa o Proton. O compilador garante: a SDK está no escopo `test`.
 
 ## Cenários
 
@@ -139,10 +139,42 @@ parâmetros, como um dataset do Proton.
 - `${out_cep}` usa a saída de um passo anterior, como a referência a saída no Proton.
 - `${env:SENHA_DA_LOJA}` lê o valor de `-D`, do ambiente ou do `.env`. Senha não vai para o
   git; no Proton, o equivalente é o parâmetro criptografado.
+- `"requer": ["android"]` pula o cenário quando não há aparelho Android conectado.
+
+## Mobile
+
+O exemplo mobile usa o [My Demo App](https://github.com/saucelabs/my-demo-app-android), o app de
+demonstração da Sauce Labs, com os mesmos produtos da loja web. Os cenários mobile pedem
+`"requer": ["android"]` e são pulados quando não há aparelho conectado.
+
+Pré-requisitos na máquina:
+
+- Android SDK, com o `adb` no `PATH`;
+- [Appium](https://appium.io) com o driver UiAutomator2: `npm install -g appium` e
+  `appium driver install uiautomator2`;
+- um aparelho Android com a depuração USB ligada (ou um emulador), visível no `adb devices`.
+
+Para rodar o exemplo, baixe o APK da [página de releases do My Demo
+App](https://github.com/saucelabs/my-demo-app-android/releases) e instale no aparelho
+(`adb install mda-*.apk`), ou aponte `MOBILE_APP` para o arquivo no `.env`. Depois:
+
+```bash
+mvn test -Dcenario=app
+```
+
+Se o Appium não estiver no ar no endereço de `APPIUM_URL`, a automação o inicia e o encerra
+no fim do cenário. `MOBILE_DISPOSITIVO` escolhe o aparelho quando há mais de um conectado.
+
+No Proton:
+
+1. Marque a automação como mobile e cadastre o APK em **Aplicativos Mobile**.
+2. Ao disparar, escolha o aparelho (os que o runner encontra) e o app.
+3. O ponto de entrada do Proton lê da execução o aparelho e o app, baixa o app e o entrega à
+   sessão mobile. O código do componente não muda.
 
 ## Rodar pelo Proton
 
-1. **Sistemas.** Cadastre um sistema para cada plataforma (por exemplo, o portal e a API)
+1. **Sistemas.** Cadastre um sistema para cada plataforma (por exemplo, o portal, a API e o app)
    e ligue todos a este repositório. O runner reconhece o projeto Java pelo `pom.xml` na
    raiz.
 2. **Componentes.** Um componente no Proton para cada classe de `componentes`, no sistema
@@ -150,9 +182,8 @@ parâmetros, como um dataset do Proton.
 3. **Automação e dataset.** Os passos do dataset são os componentes, em ordem, com os
    valores dos parâmetros. A saída de um passo vira entrada de outro pela referência a
    saída.
-4. **Execução.** O runner roda `mvn test -DidDatasetRun=<id> -Dtest=TestProtonScript`. O
-   `-DidDatasetRun` liga o perfil `proton`, que traz a SDK e compila o `TestProtonScript`.
-   O runner entrega no ambiente o endereço do Proton e um token que vale só para aquela
+4. **Execução.** O runner roda `mvn test -DidDatasetRun=<id> -Dtest=TestProtonScript` e
+   entrega no ambiente o endereço do Proton e um token que vale só para aquela
    execução. O projeto não guarda token nem endereço do Proton.
 
 A Proton Cloud SDK roda os passos em ordem, no mesmo processo, enquanto este projeto tiver

@@ -6,7 +6,11 @@ import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 
+import org.codehaus.jettison.json.JSONObject;
+
+import br.com.atomicsolutions.proton.ProtonAutomation;
 import br.com.atomicsolutions.proton.ProtonComponentRunner;
+import br.com.atomicsolutions.proton.ProtonMobileAutomation;
 import br.com.protoncloud.modelo.apoio.Componente;
 import br.com.protoncloud.modelo.apoio.Componentes;
 import br.com.protoncloud.modelo.apoio.Config;
@@ -23,9 +27,8 @@ import br.com.protoncloud.modelo.apoio.Sessoes;
  * inteira.
  * </p>
  * <p>
- * Esta pasta ({@code src/proton/java}) e a SDK só entram no build com o perfil
- * {@code proton} do pom, que liga sozinho com {@code -DidDatasetRun}. Sem o Proton, apague
- * a pasta e o perfil: o resto do projeto não muda.
+ * Sem o Proton, apague esta classe, a dependência {@code protoncloud-sdk} e o repositório
+ * {@code protoncloud} do pom: o resto do projeto não muda.
  * </p>
  */
 class TestProtonScript {
@@ -40,11 +43,35 @@ class TestProtonScript {
         Path evidencias = Config.pastaDeEvidencias().resolve(System.getProperty("idDatasetRun"));
         System.setProperty("PASTA_DE_EVIDENCIAS", evidencias.toString());
 
+        // Execução mobile: o aparelho e o app escolhidos no disparo do Proton.
+        JSONObject execucao = ProtonAutomation.getDatasetRunInfo();
+        String aparelho = texto(execucao, "device");
+        String app = texto(execucao, "app");
+
+        if (aparelho != null) {
+            System.setProperty("MOBILE_DISPOSITIVO", aparelho);
+        }
+
+        if (app != null) {
+            String caminho = ProtonMobileAutomation.downloadMobileApp(app);
+
+            if (!caminho.isBlank()) {
+                System.setProperty("MOBILE_APP", caminho);
+            }
+        }
+
         try (var sessoes = Sessoes.abrir()) {
             ProtonComponentRunner.of(TestProtonScript::passo)
                 .evidenceDir(Config.pastaDeEvidencias())
                 .execute();
         }
+    }
+
+    private static String texto(JSONObject json, String campo) {
+        // O jettison devolve o null do JSON como um objeto cujo toString() é null ou "null".
+        Object valor = json == null ? null : json.opt(campo);
+        String texto = valor == null ? null : valor.toString();
+        return texto == null || texto.isBlank() || texto.equals("null") ? null : texto;
     }
 
     /** O passo do componente, ou null quando ele não é deste projeto (a SDK devolve ao runner). */
