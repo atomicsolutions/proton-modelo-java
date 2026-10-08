@@ -163,20 +163,8 @@ resultado; quando um passo falha, grava também o erro com o stack trace. Um pas
 componente fica em outro repositório (o SAP no projeto Python, por exemplo) volta para o
 runner, que chama o projeto daquele sistema.
 
-A máquina do runner precisa de Java, de Maven e de acesso à SDK. Hoje a SDK fica no GitHub
-Packages, que pede um token do GitHub com `read:packages` no `~/.m2/settings.xml`:
-
-```xml
-<settings>
-  <servers>
-    <server>
-      <id>proton-lib</id>
-      <username>SEU_USUARIO_DO_GITHUB</username>
-      <password>SEU_TOKEN_COM_READ_PACKAGES</password>
-    </server>
-  </servers>
-</settings>
-```
+A máquina do runner precisa de Java e de Maven. A SDK vem do repositório Maven público da
+Atomic (`https://maven.protoncloud.com.br`), sem credencial.
 
 Para rodar o ponto de entrada do Proton na sua máquina, contra uma execução de verdade:
 `mvn test -DidDatasetRun=<id> -Dtest=TestProtonScript`, com `PROTON_HOST` e `PROTON_TOKEN`

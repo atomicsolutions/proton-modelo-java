@@ -113,12 +113,11 @@
                 </property>
             </activation>
 
-            <!-- A Proton Cloud SDK vem do GitHub Packages, que pede um token do GitHub
-                 com read:packages no ~/.m2/settings.xml (servidor "proton-lib"). -->
+            <!-- A Proton Cloud SDK vem do repositório Maven público da Atomic, sem credencial. -->
             <repositories>
                 <repository>
-                    <id>proton-lib</id>
-                    <url>https://maven.pkg.github.com/atomicsolutions/proton-lib</url>
+                    <id>protoncloud</id>
+                    <url>https://maven.protoncloud.com.br</url>
                 </repository>
             </repositories>
 
