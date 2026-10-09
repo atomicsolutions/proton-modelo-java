@@ -15,7 +15,8 @@ Python. Responda e escreva em português do Brasil.
 - `src/test/java/.../CenariosTest.java`: roda os cenários da pasta `cenarios/`.
 - `src/test/java/.../TestProtonScript.java`: ponto de entrada do Proton, o único que importa
   a SDK. Não mude o nome da classe: o runner procura `TestProtonScript`.
-- `cenarios/`: cenários em JSON, no formato de um dataset do Proton.
+- `cenarios/`: cenários em JSON, no formato de um dataset do Proton. O que tem
+  `falha_esperada` falha de propósito (o `compra-com-falha-proposital`): não o conserte.
 
 ## Contrato do componente
 

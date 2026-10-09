@@ -45,6 +45,11 @@ import com.google.gson.JsonParser;
  * {@code "requer"} (opcional) lista o que o cenário precisa da máquina: {@code android} (adb e
  * um aparelho conectado). Sem isso, o cenário é pulado, e não falha.
  * </p>
+ * <p>
+ * {@code "falha_esperada"} (opcional) marca o cenário que falha de propósito, com um trecho da
+ * mensagem do erro. Fora do Proton ele conta como falha esperada; no Proton, o mesmo dataset
+ * termina em Failed, com o log, o print e o erro do passo.
+ * </p>
  */
 public final class Cenarios {
 
@@ -78,6 +83,40 @@ public final class Cenarios {
         }
 
         return faltam;
+    }
+
+    /**
+     * Confere o resultado do cenário com a {@code "falha_esperada"} dele. Devolve a mensagem da
+     * falha quando ela veio como esperado; sem {@code "falha_esperada"}, devolve {@code null}
+     * (ou relança o erro).
+     */
+    public static String conferirFalhaEsperada(JsonObject cenario, Throwable erro) throws Exception {
+        String esperada = cenario.has("falha_esperada") ? cenario.get("falha_esperada").getAsString() : "";
+
+        if (esperada.isEmpty()) {
+            relancar(erro);
+            return null;
+        }
+
+        if (erro == null) {
+            throw new AssertionError("O cenário devia falhar com \"" + esperada + "\", mas passou.");
+        }
+
+        if (!String.valueOf(erro.getMessage()).contains(esperada)) {
+            relancar(erro);
+        }
+
+        return erro.getMessage();
+    }
+
+    private static void relancar(Throwable erro) throws Exception {
+        if (erro instanceof Exception excecao) {
+            throw excecao;
+        }
+
+        if (erro instanceof Error grave) {
+            throw grave;
+        }
     }
 
     private static boolean aparelhoAndroidConectado() {
@@ -145,15 +184,28 @@ public final class Cenarios {
         int falhas = 0;
 
         for (Path arquivo : arquivos) {
-            List<String> faltam = requisitosQueFaltam(carregar(arquivo));
+            JsonObject cenario = carregar(arquivo);
+            List<String> faltam = requisitosQueFaltam(cenario);
 
             if (!faltam.isEmpty()) {
                 log.warn("Pulado: {} (falta {})", arquivo, String.join(", ", faltam));
                 continue;
             }
 
+            Throwable erro = null;
+
             try (var sessoes = Sessoes.abrir()) {
                 executar(arquivo);
+            } catch (Exception | AssertionError e) {
+                erro = e;
+            }
+
+            try {
+                String falhaEsperada = conferirFalhaEsperada(cenario, erro);
+
+                if (falhaEsperada != null) {
+                    log.warn("Falhou como esperado: {} ({})", arquivo, falhaEsperada);
+                }
             } catch (Exception | AssertionError e) {
                 log.error("Falhou: {}", arquivo, e);
                 falhas++;

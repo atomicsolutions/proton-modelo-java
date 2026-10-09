@@ -140,6 +140,14 @@ parâmetros, como um dataset do Proton.
 - `${env:SENHA_DA_LOJA}` lê o valor de `-D`, do ambiente ou do `.env`. Senha não vai para o
   git; no Proton, o equivalente é o parâmetro criptografado.
 - `"requer": ["android"]` pula o cenário quando não há aparelho Android conectado.
+- `"falha_esperada"` marca o cenário que falha de propósito, com um trecho da mensagem do erro.
+
+O `compra-com-falha-proposital` falha de propósito: o usuário `problem_user` da loja tem um
+defeito conhecido no checkout (o sobrenome vai para o campo do nome) e a compra para em
+"Error: Last Name is required". Fora do Proton o teste passa quando o cenário falha com essa
+mensagem, e a suíte segue verde. No Proton, o mesmo dataset termina em **Failed**, com o
+log, o print da tela e o erro do passo: serve para conhecer uma execução que falhou e o
+diagnóstico da falha.
 
 ## Mobile
 

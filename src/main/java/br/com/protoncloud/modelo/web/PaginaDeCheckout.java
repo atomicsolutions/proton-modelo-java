@@ -2,6 +2,7 @@ package br.com.protoncloud.modelo.web;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 
 public class PaginaDeCheckout {
@@ -13,6 +14,18 @@ public class PaginaDeCheckout {
         pagina.locator("[data-test=\"lastName\"]").fill(sobrenome);
         pagina.locator("[data-test=\"postalCode\"]").fill(cep);
         pagina.locator("[data-test=\"continue\"]").click();
+        conferirQueAvancou();
+    }
+
+    /** Quando recusa os dados de entrega, a loja mostra o erro na mesma página. */
+    private void conferirQueAvancou() {
+        Locator resumo = pagina.locator("[data-test=\"subtotal-label\"]");
+        Locator erro = pagina.locator("[data-test=\"error\"]");
+        resumo.or(erro).first().waitFor();
+
+        if (erro.isVisible()) {
+            throw new AssertionError("A loja recusou os dados de entrega: " + erro.innerText());
+        }
     }
 
     /** {@code Item total: $29.99} vira {@code 29.99}. */

@@ -8,6 +8,10 @@ import java.util.List;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.gson.JsonObject;
 
 import br.com.protoncloud.modelo.apoio.Cenarios;
 import br.com.protoncloud.modelo.apoio.Config;
@@ -18,6 +22,8 @@ import br.com.protoncloud.modelo.apoio.Sessoes;
  * {@code mvn test -Dcenario=compra} roda só os que têm "compra" no nome do arquivo.
  */
 class CenariosTest {
+
+    private static final Logger log = LoggerFactory.getLogger(CenariosTest.class);
 
     static List<Path> cenarios() throws IOException {
         String filtro = Config.valor("cenario", "");
@@ -35,11 +41,23 @@ class CenariosTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cenarios")
     void cenario(Path arquivo) throws Exception {
-        List<String> faltam = Cenarios.requisitosQueFaltam(Cenarios.carregar(arquivo));
+        JsonObject cenario = Cenarios.carregar(arquivo);
+        List<String> faltam = Cenarios.requisitosQueFaltam(cenario);
         assumeTrue(faltam.isEmpty(), () -> "falta " + String.join(", ", faltam));
+
+        Throwable erro = null;
 
         try (var sessoes = Sessoes.abrir()) {
             Cenarios.executar(arquivo);
+        } catch (Exception | AssertionError e) {
+            erro = e;
+        }
+
+        // O cenário com "falha_esperada" passa quando falha com aquela mensagem.
+        String falhaEsperada = Cenarios.conferirFalhaEsperada(cenario, erro);
+
+        if (falhaEsperada != null) {
+            log.warn("Falhou como esperado (falha proposital): {}", falhaEsperada);
         }
     }
 }

@@ -159,6 +159,9 @@ public final class SessaoMobile implements Sessao {
             .withIPAddress(url.getHost())
             .usingPort(url.getPort() > 0 ? url.getPort() : 4723)
             .withLogFile(new File("target/appium.log"))
+            // O Appium leva uns 15 s para carregar o driver; com a máquina ocupada, passa dos
+            // 20 s que a biblioteca espera por padrão.
+            .withTimeout(TEMPO_PARA_O_APPIUM_SUBIR)
             .build();
         // O log do Appium vai para o target/appium.log, e não para a saída, que o runner
         // sobe como log da execução.
