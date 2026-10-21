@@ -48,7 +48,8 @@ mvn compile exec:java -Dexec.args="cenarios/compra-com-sucesso.json"  # como rob
 
 Sem argumento, o `exec:java` roda todos os cenários.
 
-As evidências (prints e respostas de API) ficam na pasta `evidencias/`.
+As evidências (prints e respostas de API) ficam na pasta `evidencias/`; numa execução do
+Proton, na pasta da execução, `evidencias/<id da execução>`.
 
 ## Estrutura
 
@@ -58,7 +59,7 @@ src/main/java/.../
   web/           sessão do navegador e páginas da loja (page objects)
   api/           sessão HTTP e clientes das APIs
   mobile/        sessão do aparelho (Appium) e telas do app
-  apoio/         configuração, sessões, evidências e a execução dos cenários
+  apoio/         configuração, sessões, evidências, falhas e a execução dos cenários
 src/test/java/.../
   CenariosTest.java       roda os cenários, sem o Proton
   TestProtonScript.java   o ponto de entrada do Proton (o único que importa a SDK)
@@ -76,8 +77,9 @@ só em `src/test`.
 
 Cada plataforma tem uma sessão: o navegador, o cliente HTTP, o aparelho. A sessão abre na primeira vez
 que um passo pede e serve aos passos seguintes do mesmo cenário, mesmo quando eles são de
-outra plataforma. No fim do cenário, todas fecham, na ordem inversa, mesmo com erro. Um
-cenário só de API nem abre navegador.
+outra plataforma. No fim do cenário, todas fecham, na ordem inversa, mesmo com erro (no
+Proton, quem as fecha é a SDK, antes de gravar o resultado). Um cenário só de API nem abre
+navegador.
 
 Os componentes não lidam com sessão: usam as páginas e os clientes, que pedem a sessão da
 plataforma deles (`SessaoWeb.pagina()`, `SessaoApi.get(...)`, `SessaoMobile.driver()`).
@@ -115,7 +117,8 @@ As regras:
 
 - os parâmetros chegam num `Map`, com o prefixo `in_`;
 - as saídas voltam num `Map`, com o prefixo `out_` (ou `null`, sem saída);
-- para falhar, lance uma exceção. O print da tela da falha é automático;
+- para falhar, lance uma exceção (veja [Falhas](#falhas)). O print da tela da falha é
+  automático;
 - seletores, ações e chamadas ficam nas páginas e nos clientes, não no componente;
 - nada em `src/main` importa o Proton. O compilador garante: a SDK está no escopo `test`.
 
@@ -146,8 +149,26 @@ O `compra-com-falha-proposital` falha de propósito: o usuário `problem_user` d
 defeito conhecido no checkout (o sobrenome vai para o campo do nome) e a compra para em
 "Error: Last Name is required". Fora do Proton o teste passa quando o cenário falha com essa
 mensagem, e a suíte segue verde. No Proton, o mesmo dataset termina em **Failed**, com o
-log, o print da tela e o erro do passo: serve para conhecer uma execução que falhou e o
-diagnóstico da falha.
+motivo de negócio, o log, o print da tela e o erro do passo: serve para conhecer uma
+execução que falhou e o diagnóstico da falha.
+
+## Falhas
+
+O passo falha quando o componente lança uma exceção. O Proton distingue três motivos de
+falha: o status continua **Failed**, e o motivo vai junto, para os painéis separarem o
+defeito da automação da recusa do sistema e do ambiente fora do ar.
+
+| Motivo | Quando | Exceção |
+|---|---|---|
+| Negócio | a regra do sistema recusou, e repetir dá o mesmo resultado | `FalhaDeNegocio` |
+| Ambiente | o ambiente não deixou rodar: o navegador ou o aparelho que não abre, a API que não responde quando a sessão abre | `FalhaDeAmbiente`, com o erro original como causa |
+| Técnica | qualquer outro erro: o elemento que não apareceu, o valor diferente do esperado | as outras (`AssertionError` para validação) |
+
+`FalhaDeNegocio` e `FalhaDeAmbiente` ficam em `apoio/` e não dependem do Proton: fora dele,
+são falhas como as outras. Numa execução do Proton, o `TestProtonScript` as entrega à SDK
+com o motivo. No exemplo, a recusa do checkout da loja (`PaginaDeCheckout`) é falha de
+negócio, e as sessões que não abrem (`SessaoWeb`, `SessaoMobile` e a primeira chamada da
+`SessaoApi`) são falha de ambiente.
 
 ## Mobile
 
@@ -197,10 +218,15 @@ No Proton:
 A Proton Cloud SDK roda os passos em ordem, no mesmo processo, enquanto este projeto tiver
 o componente: as sessões abertas valem para a execução inteira, de uma plataforma para a
 outra. A cada passo, marca início e fim, passa ao componente só os parâmetros dele, grava
-as saídas e sobe as evidências que apareceram na pasta `evidencias/`. No fim, grava o
-resultado; quando um passo falha, grava também o erro com o stack trace. Um passo cujo
+as saídas e sobe as evidências que apareceram na pasta da execução. No fim, fecha as
+sessões abertas, sobe o que apareceu no fechamento e grava o resultado; quando um passo
+falha, grava também o erro com o stack trace e o [motivo](#falhas). Um passo cujo
 componente fica em outro repositório (o SAP no projeto Python, por exemplo) volta para o
-runner, que chama o projeto daquele sistema.
+runner, que chama o projeto daquele sistema; antes disso, a SDK também fecha as sessões.
+
+O runner pode rodar várias execuções ao mesmo tempo, na mesma pasta do projeto. Cada uma
+grava as evidências na pasta dela, `evidencias/<id da execução>`, que a SDK dá
+(`ProtonComponentRunner.runEvidenceDir()`), e não sobe o que as outras gravam.
 
 A máquina do runner precisa de Java e de Maven. A SDK vem do repositório Maven público da
 Atomic (`https://maven.protoncloud.com.br`), sem credencial.
@@ -213,7 +239,15 @@ no ambiente.
 
 O `AGENTS.md` traz as regras do projeto para agentes de IA (Claude Code, Codex, Cursor e
 outros). Com o conector MCP do Proton, o agente cadastra no Proton os componentes que
-criar aqui.
+criar aqui, e o caminho é este:
+
+1. `get_project_template`: de onde vem este modelo e as regras do projeto, para começar um
+   projeto novo.
+2. `generate_component_code`: o arquivo de um componente já cadastrado no Proton, no
+   formato daqui, com os parâmetros `in_` e `out_`; falta escrever a lógica.
+3. `check_project`, depois de cada push: o repositório confere com o cadastro (um arquivo
+   por componente, os parâmetros, a versão mínima da SDK, nenhum segredo no repositório)?
+4. `check_automation`, antes da primeira execução: os datasets estão prontos para rodar?
 
 ## Licença
 

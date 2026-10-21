@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import br.com.protoncloud.modelo.apoio.Config;
 import br.com.protoncloud.modelo.apoio.Evidencias;
+import br.com.protoncloud.modelo.apoio.FalhaDeAmbiente;
 import br.com.protoncloud.modelo.apoio.Sessao;
 import br.com.protoncloud.modelo.apoio.Sessoes;
 import io.appium.java_client.android.AndroidDriver;
@@ -42,7 +43,8 @@ import io.appium.java_client.service.local.AppiumServiceBuilder;
  * Pré-requisitos na máquina: Android SDK (adb), Appium com o driver UiAutomator2
  * ({@code npm install -g appium} e {@code appium driver install uiautomator2}) e o aparelho
  * com a depuração USB ligada. Se o Appium não estiver no ar no endereço local configurado, a
- * sessão o inicia e o encerra no fim do cenário.
+ * sessão o inicia e o encerra no fim do cenário. O Appium que não sobe e a sessão que não abre
+ * no aparelho são {@link FalhaDeAmbiente}, com o erro original como causa.
  * </p>
  */
 public final class SessaoMobile implements Sessao {
@@ -78,7 +80,9 @@ public final class SessaoMobile implements Sessao {
             driver = new AndroidDriver(url, opcoes);
         } catch (RuntimeException e) {
             pararAppium();
-            throw e;
+            // O aparelho desconectado, o app que não instala ou o driver UiAutomator2 que falta.
+            String aparelho = Config.mobileDispositivo() == null ? "" : " " + Config.mobileDispositivo();
+            throw new FalhaDeAmbiente("O Appium não abriu a sessão no aparelho" + aparelho, e);
         }
 
         var capacidades = driver.getCapabilities();
@@ -151,22 +155,33 @@ public final class SessaoMobile implements Sessao {
 
     private static AppiumDriverLocalService iniciarAppium(URL url) {
         if (!url.getHost().equals("127.0.0.1") && !url.getHost().equals("localhost")) {
-            throw new IllegalStateException("O Appium não responde em " + Config.appiumUrl() + ".");
+            throw new FalhaDeAmbiente("O Appium não responde em " + Config.appiumUrl() + ".");
         }
 
         log.info("Iniciando o Appium em {}", Config.appiumUrl());
-        AppiumDriverLocalService servico = new AppiumServiceBuilder()
-            .withIPAddress(url.getHost())
-            .usingPort(url.getPort() > 0 ? url.getPort() : 4723)
-            .withLogFile(new File("target/appium.log"))
-            // O Appium leva uns 15 s para carregar o driver; com a máquina ocupada, passa dos
-            // 20 s que a biblioteca espera por padrão.
-            .withTimeout(TEMPO_PARA_O_APPIUM_SUBIR)
-            .build();
-        // O log do Appium vai para o target/appium.log, e não para a saída, que o runner
-        // sobe como log da execução.
-        servico.clearOutPutStreams();
-        servico.start();
+        AppiumDriverLocalService servico = null;
+
+        try {
+            servico = new AppiumServiceBuilder()
+                .withIPAddress(url.getHost())
+                .usingPort(url.getPort() > 0 ? url.getPort() : 4723)
+                .withLogFile(new File("target/appium.log"))
+                // O Appium leva uns 15 s para carregar o driver; com a máquina ocupada, passa dos
+                // 20 s que a biblioteca espera por padrão.
+                .withTimeout(TEMPO_PARA_O_APPIUM_SUBIR)
+                .build();
+            // O log do Appium vai para o target/appium.log, e não para a saída, que o runner
+            // sobe como log da execução.
+            servico.clearOutPutStreams();
+            servico.start();
+        } catch (RuntimeException e) {
+            // Sem o Node ou o Appium instalados, ou sem subir no tempo.
+            if (servico != null) {
+                servico.stop();
+            }
+
+            throw new FalhaDeAmbiente("O Appium não subiu em " + Config.appiumUrl() + " (veja o target/appium.log).", e);
+        }
 
         // Confere pelo próprio /status antes de abrir a sessão.
         Instant limite = Instant.now().plus(TEMPO_PARA_O_APPIUM_SUBIR);
@@ -174,7 +189,7 @@ public final class SessaoMobile implements Sessao {
         while (!appiumNoAr()) {
             if (Instant.now().isAfter(limite)) {
                 servico.stop();
-                throw new IllegalStateException("O Appium não respondeu em " + TEMPO_PARA_O_APPIUM_SUBIR.toSeconds()
+                throw new FalhaDeAmbiente("O Appium não respondeu em " + TEMPO_PARA_O_APPIUM_SUBIR.toSeconds()
                     + " s em " + Config.appiumUrl() + ".");
             }
 

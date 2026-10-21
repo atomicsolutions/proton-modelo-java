@@ -5,6 +5,8 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 
+import br.com.protoncloud.modelo.apoio.FalhaDeNegocio;
+
 public class PaginaDeCheckout {
 
     private final Page pagina = SessaoWeb.pagina();
@@ -17,14 +19,17 @@ public class PaginaDeCheckout {
         conferirQueAvancou();
     }
 
-    /** Quando recusa os dados de entrega, a loja mostra o erro na mesma página. */
+    /**
+     * Quando recusa os dados de entrega, a loja mostra o erro na mesma página. É a regra da
+     * loja, e não um defeito da automação: repetir dá o mesmo resultado.
+     */
     private void conferirQueAvancou() {
         Locator resumo = pagina.locator("[data-test=\"subtotal-label\"]");
         Locator erro = pagina.locator("[data-test=\"error\"]");
         resumo.or(erro).first().waitFor();
 
         if (erro.isVisible()) {
-            throw new AssertionError("A loja recusou os dados de entrega: " + erro.innerText());
+            throw new FalhaDeNegocio("A loja recusou os dados de entrega: " + erro.innerText());
         }
     }
 

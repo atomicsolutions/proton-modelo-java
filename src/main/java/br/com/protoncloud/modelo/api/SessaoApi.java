@@ -22,6 +22,7 @@ import com.google.gson.JsonSyntaxException;
 
 import br.com.protoncloud.modelo.apoio.Config;
 import br.com.protoncloud.modelo.apoio.Evidencias;
+import br.com.protoncloud.modelo.apoio.FalhaDeAmbiente;
 import br.com.protoncloud.modelo.apoio.Sessao;
 import br.com.protoncloud.modelo.apoio.Sessoes;
 
@@ -29,9 +30,10 @@ import br.com.protoncloud.modelo.apoio.Sessoes;
  * A sessão de API: um cliente HTTP (java.net.http) por cenário, compartilhado pelos passos.
  * <p>
  * O cliente tenta de novo, com espera crescente, quando a conexão cai ou o servidor
- * responde 502, 503 ou 504. A evidência de uma chamada é a última resposta, gravada em
- * JSON: método, endereço, status e corpo. Os cabeçalhos ficam de fora, porque levam
- * credenciais.
+ * responde 502, 503 ou 504. A API que não responde nenhuma vez, já na primeira chamada da
+ * sessão, é {@link FalhaDeAmbiente}. A evidência de uma chamada é a última resposta,
+ * gravada em JSON: método, endereço, status e corpo. Os cabeçalhos ficam de fora, porque
+ * levam credenciais.
  * </p>
  */
 public final class SessaoApi implements Sessao {
@@ -75,6 +77,14 @@ public final class SessaoApi implements Sessao {
 
                 log.warn("{} respondeu {} (tentativa {} de {})", pedido.uri(), ultimaResposta.statusCode(), tentativa, TENTATIVAS);
             } catch (IOException e) {
+                // Sem resposta nenhuma desde que a sessão abriu, a API está fora do ar ou fora do
+                // alcance da máquina (rede, proxy, VPN): é o ambiente. Depois que ela já
+                // respondeu, a queda é uma falha como as outras.
+                if (tentativa == TENTATIVAS && ultimaResposta == null) {
+                    throw new FalhaDeAmbiente("A API não respondeu ao abrir a sessão: " + pedido.uri()
+                        + " (" + TENTATIVAS + " tentativas)", e);
+                }
+
                 if (tentativa == TENTATIVAS) {
                     throw new UncheckedIOException("Falha ao chamar " + pedido.uri(), e);
                 }

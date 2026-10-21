@@ -1,19 +1,26 @@
 package br.com.protoncloud.modelo;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import java.nio.file.Path;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
 import org.codehaus.jettison.json.JSONObject;
 
+import br.com.atomicsolutions.proton.FailureReason;
 import br.com.atomicsolutions.proton.ProtonAutomation;
+import br.com.atomicsolutions.proton.ProtonBusinessError;
 import br.com.atomicsolutions.proton.ProtonComponentRunner;
+import br.com.atomicsolutions.proton.ProtonEnvironmentError;
 import br.com.atomicsolutions.proton.ProtonMobileAutomation;
 import br.com.protoncloud.modelo.apoio.Componente;
 import br.com.protoncloud.modelo.apoio.Componentes;
-import br.com.protoncloud.modelo.apoio.Config;
+import br.com.protoncloud.modelo.apoio.FalhaDeAmbiente;
+import br.com.protoncloud.modelo.apoio.FalhaDeNegocio;
 import br.com.protoncloud.modelo.apoio.Sessoes;
 
 /**
@@ -27,6 +34,11 @@ import br.com.protoncloud.modelo.apoio.Sessoes;
  * inteira.
  * </p>
  * <p>
+ * O que muda numa execução do Proton fica todo aqui: a pasta de evidências da execução, as
+ * sessões fechadas pela SDK antes do status e o motivo da falha ({@link FalhaDeNegocio} e
+ * {@link FalhaDeAmbiente} viram as exceções da SDK).
+ * </p>
+ * <p>
  * Sem o Proton, apague esta classe, a dependência {@code protoncloud-sdk} e o repositório
  * {@code protoncloud} do pom: o resto do projeto não muda.
  * </p>
@@ -38,10 +50,10 @@ class TestProtonScript {
         assumeTrue(System.getProperty("idDatasetRun") != null,
             "Só roda numa execução do Proton (-DidDatasetRun). Fora dele, os cenários rodam no CenariosTest.");
 
-        // O runner pode rodar várias execuções ao mesmo tempo, na mesma pasta do projeto: cada
-        // uma grava as evidências numa subpasta própria, senão um passo sobe o print da outra.
-        Path evidencias = Config.pastaDeEvidencias().resolve(System.getProperty("idDatasetRun"));
-        System.setProperty("PASTA_DE_EVIDENCIAS", evidencias.toString());
+        // O runner pode rodar várias execuções ao mesmo tempo, na mesma pasta do projeto. A SDK
+        // dá a cada uma a pasta dela (evidencias/<id da execução>) e não sobe o que as outras
+        // gravam nas delas.
+        System.setProperty("PASTA_DE_EVIDENCIAS", ProtonComponentRunner.runEvidenceDir().toString());
 
         // Execução mobile: o aparelho e o app escolhidos no disparo do Proton.
         JSONObject execucao = ProtonAutomation.getDatasetRunInfo();
@@ -60,11 +72,30 @@ class TestProtonScript {
             }
         }
 
+        // As sessões abrem na primeira vez que um passo pede. A SDK as fecha antes de gravar o
+        // status (e antes de devolver ao runner o passo de outro projeto), e sobe o que sair
+        // do fechamento. O try fecha o que sobrar: fechar de novo não faz nada.
         try (var sessoes = Sessoes.abrir()) {
             ProtonComponentRunner.of(TestProtonScript::passo)
-                .evidenceDir(Config.pastaDeEvidencias())
+                .closeAtEnd(sessoes)
                 .execute();
         }
+    }
+
+    /** O motivo que o Proton grava junto com o Failed, para cada tipo de falha do projeto. */
+    @Test
+    void motivoDaFalha() {
+        var negocio = new FalhaDeNegocio("A loja recusou os dados de entrega: Error: Last Name is required");
+        var ambiente = new FalhaDeAmbiente("O Chromium da Playwright não abriu", new IllegalStateException("sem navegador"));
+
+        assertEquals("business_error", FailureReason.of(falhaNoProton(negocio)));
+        assertEquals("environment_error", FailureReason.of(falhaNoProton(ambiente)));
+        assertEquals("technical_error", FailureReason.of(falhaNoProton(new IllegalStateException("O elemento não apareceu"))));
+        assertEquals("technical_error", FailureReason.of(falhaNoProton(new AssertionError("Total dos itens 7.99; o esperado era 29.99"))));
+
+        // A falha do projeto segue como causa, com a mensagem e o stack trace dela.
+        assertSame(negocio, falhaNoProton(negocio).getCause());
+        assertSame(ambiente, falhaNoProton(ambiente).getCause());
     }
 
     private static String texto(JSONObject json, String campo) {
@@ -77,6 +108,37 @@ class TestProtonScript {
     /** O passo do componente, ou null quando ele não é deste projeto (a SDK devolve ao runner). */
     private static ProtonComponentRunner.Step passo(String nome) {
         Componente componente = Componentes.localizar(nome);
-        return componente == null ? null : componente::executar;
+        return componente == null ? null : comMotivo(componente);
+    }
+
+    /**
+     * O componente como passo da SDK, com o motivo da falha: {@link FalhaDeNegocio} vira
+     * {@link ProtonBusinessError} e {@link FalhaDeAmbiente} vira {@link ProtonEnvironmentError},
+     * com a original como causa. Qualquer outra exceção segue como está, e o Proton a conta
+     * como falha técnica.
+     */
+    private static ProtonComponentRunner.Step comMotivo(Componente componente) {
+        return parametros -> {
+            try {
+                return componente.executar(parametros);
+            } catch (FalhaDeNegocio e) {
+                throw new ProtonBusinessError(e.getMessage(), e);
+            } catch (FalhaDeAmbiente e) {
+                throw new ProtonEnvironmentError(e.getMessage(), e);
+            }
+        };
+    }
+
+    /** O que a SDK recebe do passo quando o componente lança o erro. */
+    private static Throwable falhaNoProton(Throwable erro) {
+        Componente componente = parametros -> {
+            if (erro instanceof Error grave) {
+                throw grave;
+            }
+
+            throw (Exception) erro;
+        };
+
+        return assertThrows(Throwable.class, () -> comMotivo(componente).run(Map.of()));
     }
 }

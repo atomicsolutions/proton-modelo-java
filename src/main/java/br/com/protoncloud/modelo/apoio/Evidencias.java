@@ -13,8 +13,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Evidências: prints e arquivos gravados na pasta de evidências ({@code PASTA_DE_EVIDENCIAS}).
  * <p>
- * Fora do Proton, ficam na pasta. Numa execução do Proton, o que aparece na pasta durante
- * um passo sobe para aquele passo. A automação não precisa saber onde está rodando.
+ * Fora do Proton, ficam na pasta. Numa execução do Proton, a pasta é a da execução
+ * ({@code evidencias/<id da execução>}), e o que aparece nela durante um passo sobe para
+ * aquele passo. A automação não precisa saber onde está rodando.
  * </p>
  * <p>
  * Cada plataforma grava a evidência dela ({@code SessaoWeb.printDaTela},

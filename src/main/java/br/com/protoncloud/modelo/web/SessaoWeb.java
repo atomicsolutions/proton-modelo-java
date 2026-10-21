@@ -16,6 +16,7 @@ import com.microsoft.playwright.PlaywrightException;
 
 import br.com.protoncloud.modelo.apoio.Config;
 import br.com.protoncloud.modelo.apoio.Evidencias;
+import br.com.protoncloud.modelo.apoio.FalhaDeAmbiente;
 import br.com.protoncloud.modelo.apoio.Sessao;
 import br.com.protoncloud.modelo.apoio.Sessoes;
 
@@ -47,10 +48,26 @@ public final class SessaoWeb implements Sessao {
             opcoes.setChannel(Config.canalDoNavegador());
         }
 
-        playwright = Playwright.create(criacao);
-        browser = playwright.chromium().launch(opcoes);
-        contexto = browser.newContext(new Browser.NewContextOptions().setViewportSize(1366, 768));
-        pagina = contexto.newPage();
+        // O navegador que não abre (não baixou, não está instalado, a máquina não deixa) é
+        // falha do ambiente, e não da automação.
+        try {
+            playwright = Playwright.create(criacao);
+        } catch (RuntimeException e) {
+            throw new FalhaDeAmbiente("A Playwright não iniciou (o driver ou os navegadores dela não baixaram)", e);
+        }
+
+        try {
+            browser = playwright.chromium().launch(opcoes);
+            contexto = browser.newContext(new Browser.NewContextOptions().setViewportSize(1366, 768));
+            pagina = contexto.newPage();
+        } catch (RuntimeException e) {
+            playwright.close();
+            String navegador = Config.canalDoNavegador() == null
+                ? "O Chromium da Playwright"
+                : "O navegador \"" + Config.canalDoNavegador() + "\" (CANAL_DO_NAVEGADOR)";
+            throw new FalhaDeAmbiente(navegador + " não abriu", e);
+        }
+
         pagina.setDefaultTimeout(Config.timeoutMs());
     }
 
