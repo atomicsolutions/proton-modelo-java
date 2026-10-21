@@ -167,8 +167,8 @@ defeito da automação da recusa do sistema e do ambiente fora do ar.
 `FalhaDeNegocio` e `FalhaDeAmbiente` ficam em `apoio/` e não dependem do Proton: fora dele,
 são falhas como as outras. Numa execução do Proton, o `TestProtonScript` as entrega à SDK
 com o motivo. No exemplo, a recusa do checkout da loja (`PaginaDeCheckout`) é falha de
-negócio, e as sessões que não abrem (`SessaoWeb`, `SessaoMobile` e a primeira chamada da
-`SessaoApi`) são falha de ambiente.
+negócio, e as sessões que não abrem (`SessaoWeb`, `SessaoMobile`) e a API que não responde
+ou segue indisponível depois das tentativas (`SessaoApi`) são falha de ambiente.
 
 ## Mobile
 

@@ -30,8 +30,9 @@ import br.com.protoncloud.modelo.apoio.Sessoes;
  * A sessão de API: um cliente HTTP (java.net.http) por cenário, compartilhado pelos passos.
  * <p>
  * O cliente tenta de novo, com espera crescente, quando a conexão cai ou o servidor
- * responde 502, 503 ou 504. A API que não responde nenhuma vez, já na primeira chamada da
- * sessão, é {@link FalhaDeAmbiente}. A evidência de uma chamada é a última resposta,
+ * responde 502, 503 ou 504. A API que segue sem responder, ou indisponível, depois das
+ * tentativas é {@link FalhaDeAmbiente}, em qualquer chamada do cenário; a mensagem leva só
+ * o host, porque o endereço pode ter chave. A evidência de uma chamada é a última resposta,
  * gravada em JSON: método, endereço, status e corpo. Os cabeçalhos ficam de fora, porque
  * levam credenciais.
  * </p>
@@ -71,22 +72,22 @@ public final class SessaoApi implements Sessao {
             try {
                 ultimaResposta = cliente.send(pedido, HttpResponse.BodyHandlers.ofString());
 
-                if (!INDISPONIVEL.contains(ultimaResposta.statusCode()) || tentativa == TENTATIVAS) {
+                if (!INDISPONIVEL.contains(ultimaResposta.statusCode())) {
                     return ultimaResposta;
+                }
+
+                if (tentativa == TENTATIVAS) {
+                    throw new FalhaDeAmbiente("A API ficou indisponível: " + pedido.uri().getHost() + " respondeu "
+                        + ultimaResposta.statusCode() + " nas " + TENTATIVAS + " tentativas");
                 }
 
                 log.warn("{} respondeu {} (tentativa {} de {})", pedido.uri(), ultimaResposta.statusCode(), tentativa, TENTATIVAS);
             } catch (IOException e) {
-                // Sem resposta nenhuma desde que a sessão abriu, a API está fora do ar ou fora do
-                // alcance da máquina (rede, proxy, VPN): é o ambiente. Depois que ela já
-                // respondeu, a queda é uma falha como as outras.
-                if (tentativa == TENTATIVAS && ultimaResposta == null) {
-                    throw new FalhaDeAmbiente("A API não respondeu ao abrir a sessão: " + pedido.uri()
-                        + " (" + TENTATIVAS + " tentativas)", e);
-                }
-
+                // Sem resposta depois das tentativas, a API está fora do ar ou fora do alcance da
+                // máquina (rede, proxy, VPN): é o ambiente, como no modelo Python.
                 if (tentativa == TENTATIVAS) {
-                    throw new UncheckedIOException("Falha ao chamar " + pedido.uri(), e);
+                    throw new FalhaDeAmbiente("A API não respondeu: " + pedido.uri().getHost()
+                        + " (" + TENTATIVAS + " tentativas)", e);
                 }
 
                 log.warn("Rede instável ao chamar {} (tentativa {} de {}): {}", pedido.uri(), tentativa, TENTATIVAS, e.toString());
