@@ -3,6 +3,8 @@ package br.com.protoncloud.modelo.mobile;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.net.URL;
 import java.net.http.HttpClient;
@@ -36,8 +38,15 @@ import io.appium.java_client.service.local.AppiumServiceBuilder;
  * Configuração ({@link Config}): {@code APPIUM_URL}, {@code MOBILE_DISPOSITIVO} (o serial do
  * {@code adb devices}; vazio usa o primeiro conectado) e {@code MOBILE_APP} (o caminho do
  * .apk; vazio abre o app já instalado, pelo {@code MOBILE_PACOTE} e pela
- * {@code MOBILE_ACTIVITY}). Numa execução do Proton, o aparelho e o app escolhidos no
- * disparo chegam pelo ponto de entrada do Proton.
+ * {@code MOBILE_ACTIVITY}).
+ * </p>
+ * <p>
+ * Uma sessão por sistema: um cenário pode passar por dois apps (o do cliente e o do
+ * entregador, por exemplo), cada um no seu aparelho. Numa execução do Proton, o ponto de
+ * entrada informa, antes de cada passo, o aparelho e o app do sistema dele
+ * ({@link #usarAparelho}), e a sessão fica guardada como {@code mobile:<id do sistema>}. Cada
+ * aparelho local tem o seu {@code systemPort} no UiAutomator2, para dois aparelhos não
+ * disputarem a mesma porta. Fora do Proton, vale o aparelho da configuração, numa sessão só.
  * </p>
  * <p>
  * Pré-requisitos na máquina: Android SDK (adb), Appium com o driver UiAutomator2
@@ -52,10 +61,36 @@ public final class SessaoMobile implements Sessao {
     private static final Logger log = LoggerFactory.getLogger(SessaoMobile.class);
     private static final Duration TEMPO_PARA_O_APPIUM_SUBIR = Duration.ofSeconds(60);
 
+    /**
+     * O aparelho de um sistema mobile: o serial (null, o primeiro conectado) e o .apk (null,
+     * o app já instalado).
+     * @param sistema o id do sistema no Proton; null fora do Proton
+     */
+    public record Aparelho(String sistema, String serial, String app) {
+
+        /** A chave da sessão: uma por sistema, e uma só fora do Proton. */
+        public String chave() {
+            return sistema == null ? "mobile" : "mobile:" + sistema;
+        }
+    }
+
+    private static volatile Aparelho aparelhoDoPasso;
+
     private AppiumDriverLocalService servico;
     private final AndroidDriver driver;
 
-    private SessaoMobile() {
+    /** O aparelho do passo que vai rodar; null volta ao da configuração. */
+    public static void usarAparelho(Aparelho aparelho) {
+        aparelhoDoPasso = aparelho;
+    }
+
+    /** O aparelho informado para o passo, ou o da configuração. */
+    public static Aparelho aparelhoDoPasso() {
+        Aparelho aparelho = aparelhoDoPasso;
+        return aparelho != null ? aparelho : new Aparelho(null, Config.mobileDispositivo(), Config.mobileApp());
+    }
+
+    private SessaoMobile(Aparelho aparelho) {
         URL url = endereco();
         servico = appiumNoAr() ? null : iniciarAppium(url);
 
@@ -64,14 +99,17 @@ public final class SessaoMobile implements Sessao {
             .setAutoGrantPermissions(true)
             // Muitos apps abrem por uma tela de abertura que some logo: qualquer tela do app
             // serve como sinal de que ele abriu.
-            .setAppWaitActivity("*");
+            .setAppWaitActivity("*")
+            // O UiAutomator2 fala com o aparelho por uma porta da máquina (8200, se ninguém
+            // escolher): com dois aparelhos na mesma execução, cada um precisa da sua.
+            .setSystemPort(portaLivre());
 
-        if (Config.mobileDispositivo() != null) {
-            opcoes.setUdid(Config.mobileDispositivo());
+        if (aparelho.serial() != null) {
+            opcoes.setUdid(aparelho.serial());
         }
 
-        if (Config.mobileApp() != null) {
-            opcoes.setApp(Path.of(Config.mobileApp()).toAbsolutePath().toString());
+        if (aparelho.app() != null) {
+            opcoes.setApp(Path.of(aparelho.app()).toAbsolutePath().toString());
         } else {
             opcoes.setAppPackage(Config.mobilePacote()).setAppActivity(Config.mobileActivity());
         }
@@ -81,8 +119,8 @@ public final class SessaoMobile implements Sessao {
         } catch (RuntimeException e) {
             pararAppium();
             // O aparelho desconectado, o app que não instala ou o driver UiAutomator2 que falta.
-            String aparelho = Config.mobileDispositivo() == null ? "" : " " + Config.mobileDispositivo();
-            throw new FalhaDeAmbiente("O Appium não abriu a sessão no aparelho" + aparelho, e);
+            String serial = aparelho.serial() == null ? "" : " " + aparelho.serial();
+            throw new FalhaDeAmbiente("O Appium não abriu a sessão no aparelho" + serial, e);
         }
 
         var capacidades = driver.getCapabilities();
@@ -91,15 +129,16 @@ public final class SessaoMobile implements Sessao {
     }
 
     private static SessaoMobile sessao() {
-        return Sessoes.obter("mobile", SessaoMobile.class, SessaoMobile::new);
+        Aparelho aparelho = aparelhoDoPasso();
+        return Sessoes.obter(aparelho.chave(), SessaoMobile.class, () -> new SessaoMobile(aparelho));
     }
 
-    /** O driver do Appium do cenário. */
+    /** O driver do Appium do aparelho do passo. */
     public static AndroidDriver driver() {
         return sessao().driver;
     }
 
-    /** Grava um print da tela do aparelho na pasta de evidências. */
+    /** Grava um print da tela do aparelho do passo na pasta de evidências. */
     public static Path printDaTela(String nome) {
         return sessao().evidencia(nome);
     }
@@ -130,6 +169,14 @@ public final class SessaoMobile implements Sessao {
         if (servico != null) {
             servico.stop();
             servico = null;
+        }
+    }
+
+    static int portaLivre() {
+        try (var porta = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            return porta.getLocalPort();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

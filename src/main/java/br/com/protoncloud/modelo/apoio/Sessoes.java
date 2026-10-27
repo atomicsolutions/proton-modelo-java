@@ -40,14 +40,21 @@ public final class Sessoes implements AutoCloseable {
         return new Sessoes();
     }
 
-    /** A sessão da plataforma: abre na primeira vez, reaproveita nas seguintes. */
-    public static <S extends Sessao> S obter(String plataforma, Class<S> tipo, Supplier<S> abrir) {
-        Sessao sessao = ABERTAS.get(plataforma);
+    /**
+     * A sessão da chave: abre na primeira vez, reaproveita nas seguintes.
+     * <p>
+     * A chave é a plataforma ({@code web}, {@code api}) ou, quando uma plataforma pode ter mais
+     * de uma sessão no mesmo cenário, a plataforma e o sistema: {@code mobile:12} e
+     * {@code mobile:15} são dois aparelhos, um para cada app.
+     * </p>
+     */
+    public static <S extends Sessao> S obter(String chave, Class<S> tipo, Supplier<S> abrir) {
+        Sessao sessao = ABERTAS.get(chave);
 
         if (sessao == null) {
-            log.info("Abrindo a sessão {}", plataforma);
+            log.info("Abrindo a sessão {}", chave);
             sessao = abrir.get();
-            ABERTAS.put(plataforma, sessao);
+            ABERTAS.put(chave, sessao);
         }
 
         return tipo.cast(sessao);
