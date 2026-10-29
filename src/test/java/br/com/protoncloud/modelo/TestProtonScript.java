@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.UnaryOperator;
 
 import org.junit.jupiter.api.Test;
 
@@ -19,9 +21,12 @@ import br.com.atomicsolutions.proton.ProtonEnvironmentError;
 import br.com.atomicsolutions.proton.ProtonMobileAutomation;
 import br.com.protoncloud.modelo.apoio.Componente;
 import br.com.protoncloud.modelo.apoio.Componentes;
+import br.com.protoncloud.modelo.apoio.Config;
 import br.com.protoncloud.modelo.apoio.FalhaDeAmbiente;
 import br.com.protoncloud.modelo.apoio.FalhaDeNegocio;
 import br.com.protoncloud.modelo.apoio.Sessoes;
+import br.com.protoncloud.modelo.mobile.SessaoMobile;
+import br.com.protoncloud.modelo.mobile.SessaoMobile.Aparelho;
 
 /**
  * Ponto de entrada do runner do Proton, e a única classe do projeto que conhece o Proton.
@@ -55,23 +60,6 @@ class TestProtonScript {
         // gravam nas delas.
         System.setProperty("PASTA_DE_EVIDENCIAS", ProtonComponentRunner.runEvidenceDir().toString());
 
-        // Execução mobile: o aparelho e o app escolhidos no disparo do Proton.
-        JSONObject execucao = ProtonAutomation.getDatasetRunInfo();
-        String aparelho = texto(execucao, "device");
-        String app = texto(execucao, "app");
-
-        if (aparelho != null) {
-            System.setProperty("MOBILE_DISPOSITIVO", aparelho);
-        }
-
-        if (app != null) {
-            String caminho = ProtonMobileAutomation.downloadMobileApp(app);
-
-            if (!caminho.isBlank()) {
-                System.setProperty("MOBILE_APP", caminho);
-            }
-        }
-
         // As sessões abrem na primeira vez que um passo pede. A SDK as fecha antes de gravar o
         // status (e antes de devolver ao runner o passo de outro projeto), e sobe o que sair
         // do fechamento. O try fecha o que sobrar: fechar de novo não faz nada.
@@ -98,17 +86,54 @@ class TestProtonScript {
         assertSame(ambiente, falhaNoProton(ambiente).getCause());
     }
 
-    private static String texto(JSONObject json, String campo) {
-        // O jettison devolve o null do JSON como um objeto cujo toString() é null ou "null".
-        Object valor = json == null ? null : json.opt(campo);
-        String texto = valor == null ? null : valor.toString();
-        return texto == null || texto.isBlank() || texto.equals("null") ? null : texto;
-    }
-
-    /** O passo do componente, ou null quando ele não é deste projeto (a SDK devolve ao runner). */
+    /**
+     * O passo do componente, ou null quando ele não é deste projeto (a SDK devolve ao runner).
+     * Cada passo leva o aparelho do sistema dele: uma execução pode ter vários sistemas mobile.
+     */
     private static ProtonComponentRunner.Step passo(String nome) {
         Componente componente = Componentes.localizar(nome);
-        return componente == null ? null : comMotivo(componente);
+
+        if (componente == null) {
+            return null;
+        }
+
+        // Lido agora, antes de o passo começar: o Proton responde pelo passo que ainda não começou.
+        Aparelho aparelho = aparelho(ProtonAutomation.getCurrentComponentDevice(), TestProtonScript::baixarApp);
+        return comAparelho(aparelho, comMotivo(componente));
+    }
+
+    private static final Map<String, String> APPS_BAIXADOS = new ConcurrentHashMap<>();
+
+    /** O app de cada sistema, baixado uma vez por execução. */
+    private static String baixarApp(String idDoApp) {
+        return APPS_BAIXADOS.computeIfAbsent(idDoApp, ProtonMobileAutomation::downloadMobileApp);
+    }
+
+    /**
+     * O aparelho e o app que o disparo escolheu para o sistema do passo, ou null (passo de outra
+     * plataforma: vale o da configuração).
+     */
+    static Aparelho aparelho(JSONObject doProton, UnaryOperator<String> baixar) {
+        if (doProton == null) {
+            return null;
+        }
+
+        String serial = doProton.optString("device", "");
+        String idDoApp = doProton.optString("app", "");
+        String sistema = doProton.optString("idSystem", "");
+        String app = idDoApp.isEmpty() ? "" : baixar.apply(idDoApp);
+
+        return new Aparelho(sistema.isEmpty() ? null : sistema,
+            serial.isEmpty() ? Config.mobileDispositivo() : serial,
+            app == null || app.isBlank() ? Config.mobileApp() : app);
+    }
+
+    /** O passo com o aparelho do sistema dele. */
+    static ProtonComponentRunner.Step comAparelho(Aparelho aparelho, ProtonComponentRunner.Step passo) {
+        return parametros -> {
+            SessaoMobile.usarAparelho(aparelho);
+            return passo.run(parametros);
+        };
     }
 
     /**
@@ -127,6 +152,47 @@ class TestProtonScript {
                 throw new ProtonEnvironmentError(e.getMessage(), e);
             }
         };
+    }
+
+    /** Cada passo leva o aparelho e o app do sistema dele: uma execução pode ter vários sistemas mobile. */
+    @Test
+    void cadaPassoUsaOAparelhoDoSistemaDele() throws Exception {
+        var doCliente = new JSONObject("{\"idSystem\": 12, \"deviceFarm\": \"local\", \"device\": \"R58M123\", \"app\": \"301\"}");
+        var doEntregador = new JSONObject("{\"idSystem\": 15, \"deviceFarm\": \"local\", \"device\": \"R58M999\", \"app\": \"302\"}");
+        UnaryOperator<String> baixar = id -> "/apps/" + id + ".apk";
+
+        assertEquals(new Aparelho("12", "R58M123", "/apps/301.apk"), aparelho(doCliente, baixar));
+        assertEquals(new Aparelho("15", "R58M999", "/apps/302.apk"), aparelho(doEntregador, baixar));
+        assertEquals("mobile:15", aparelho(doEntregador, baixar).chave());
+
+        try {
+            var cliente = aparelho(doCliente, baixar);
+            comAparelho(cliente, parametros -> {
+                assertSame(cliente, SessaoMobile.aparelhoDoPasso());
+                return Map.of();
+            }).run(Map.of());
+
+            // Passo de outra plataforma: volta ao aparelho da configuração.
+            comAparelho(aparelho(null, baixar), parametros -> {
+                assertEquals("mobile", SessaoMobile.aparelhoDoPasso().chave());
+                return Map.of();
+            }).run(Map.of());
+        } finally {
+            SessaoMobile.usarAparelho(null);
+        }
+    }
+
+    /** Sem app escolhido no disparo, vale o app da configuração (ou o já instalado). */
+    @Test
+    void aparelhoSemAppNaoBaixaNada() throws Exception {
+        var semApp = new JSONObject("{\"idSystem\": 12, \"device\": \"R58M123\"}");
+
+        Aparelho aparelho = aparelho(semApp, id -> {
+            throw new AssertionError("não devia baixar");
+        });
+
+        assertEquals("R58M123", aparelho.serial());
+        assertEquals(Config.mobileApp(), aparelho.app());
     }
 
     /** O que a SDK recebe do passo quando o componente lança o erro. */
