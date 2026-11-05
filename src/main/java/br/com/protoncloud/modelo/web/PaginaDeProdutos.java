@@ -14,6 +14,12 @@ public class PaginaDeProdutos {
         assertThat(pagina.locator("[data-test=\"title\"]")).hasText("Products");
     }
 
+    /** Se a loja vende o produto, sem esperar: a lista de produtos já está na tela. */
+    public boolean temProduto(String produto) {
+        conferirQueAbriu();
+        return pagina.locator("[data-test=\"inventory-item\"]").filter(new Locator.FilterOptions().setHasText(produto)).count() == 1;
+    }
+
     /** Adiciona o produto e devolve o preço dele, sem o símbolo da moeda. */
     public String adicionarAoCarrinho(String produto) {
         Locator item = pagina.locator("[data-test=\"inventory-item\"]").filter(new Locator.FilterOptions().setHasText(produto));
