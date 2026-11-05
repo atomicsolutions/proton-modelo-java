@@ -22,9 +22,10 @@ O mesmo código roda de três jeitos:
 - **pelo [Proton](https://protoncloud.com.br)**, que dispara os mesmos componentes a partir
   de um dataset e guarda log, prints, saídas e resultado de cada execução.
 
-O Proton é opcional. Só uma classe do projeto conhece o Proton: o `TestProtonScript`.
-Apague essa classe, a dependência `protoncloud-sdk` e o repositório `protoncloud` do
-`pom.xml`, e o resto continua igual. A automação é sua, com ou sem a ferramenta.
+O Proton é opcional. Só uma classe do projeto conhece o Proton: o `TestProtonScript` (e o
+exemplo da [tabela de dados](#tabela-de-dados), que é um recurso do Proton). Apague essa
+classe, o exemplo da tabela, a dependência `protoncloud-sdk` e o repositório `protoncloud`
+do `pom.xml`, e o resto continua igual. A automação é sua, com ou sem a ferramenta.
 
 ## Rodar localmente
 
@@ -64,6 +65,7 @@ src/test/java/.../
   CenariosTest.java       roda os cenários, sem o Proton
   TestProtonScript.java   o ponto de entrada do Proton (o único que importa a SDK)
 cenarios/                 os cenários em JSON, no mesmo formato de um dataset do Proton
+  tabelas/                as tabelas de dados dos cenários, em .csv
 ```
 
 Quem escreve a automação mexe em `componentes/`, nos pacotes das plataformas e em
@@ -120,7 +122,8 @@ As regras:
 - para falhar, lance uma exceção (veja [Falhas](#falhas)). O print da tela da falha é
   automático;
 - seletores, ações e chamadas ficam nas páginas e nos clientes, não no componente;
-- nada em `src/main` importa o Proton. O compilador garante: a SDK está no escopo `test`.
+- nada em `src/main` importa o Proton, a não ser o componente que usa a
+  [tabela de dados](#tabela-de-dados).
 
 ## Cenários
 
@@ -143,6 +146,8 @@ parâmetros, como um dataset do Proton.
 - `${env:SENHA_DA_LOJA}` lê o valor de `-D`, do ambiente ou do `.env`. Senha não vai para o
   git; no Proton, o equivalente é o parâmetro criptografado.
 - `"requer": ["android"]` pula o cenário quando não há aparelho Android conectado.
+- `"tabela"` aponta a tabela de dados do cenário, um .csv da pasta `cenarios/tabelas/` (veja
+  [Tabela de dados](#tabela-de-dados)).
 - `"falha_esperada"` marca o cenário que falha de propósito, com um trecho da mensagem do erro.
 
 O `compra-com-falha-proposital` falha de propósito: o usuário `problem_user` da loja tem um
@@ -169,6 +174,70 @@ são falhas como as outras. Numa execução do Proton, o `TestProtonScript` as e
 com o motivo. No exemplo, a recusa do checkout da loja (`PaginaDeCheckout`) é falha de
 negócio, e as sessões que não abrem (`SessaoWeb`, `SessaoMobile`) e a API que não responde
 ou segue indisponível depois das tentativas (`SessaoApi`) são falha de ambiente.
+
+## Tabela de dados
+
+No Proton, o dataset pode ter uma **tabela de dados** com abas, editável como planilha na
+tela do dataset (colar do Excel, importar e exportar .xlsx e .csv). Cada execução recebe uma
+cópia: o script lê e grava só nela, e o dataset muda apenas quando alguém leva os valores
+de volta pela tela da execução. Vem da Proton Cloud SDK 5.7.0, na classe `ProtonTable`.
+
+O exemplo é o cenário `compra-em-massa-pela-tabela`: o `AdicionarProdutosDaTabela` percorre
+a aba `produtos`, põe cada produto no carrinho e grava na mesma linha o status, o preço e a
+mensagem. Cria a coluna `processado_em`, inclui uma linha de total e devolve o total dos
+itens, que o `FinalizarCompra` confere no checkout. A Caneca do Proton não existe na loja:
+a linha dela fica com erro, e as outras seguem.
+
+```java
+ProtonTable produtos = ProtonTable.get("produtos");   // sem nome: a primeira aba
+produtos.addColumn("processado_em");                  // coluna nova, só nesta execução
+
+for (ProtonRow linha : produtos) {                    // valor é sempre texto
+    try {
+        String preco = new PaginaDeProdutos().adicionarAoCarrinho(linha.get("produto"));
+        produtos.set(linha, "status", "no carrinho");   // linha a linha: grava na hora
+        produtos.set(linha, "preco", preco);
+    } catch (ProtonTableException e) {
+        throw e;                                      // coluna errada, execução terminada: para
+    } catch (RuntimeException | AssertionError e) {
+        produtos.set(linha, "status", "erro");
+        produtos.set(linha, "mensagem", e.getMessage());
+    }
+}
+
+produtos.addRows(List.of(Map.of("produto", "Total", "preco", "47.97")));   // em lote: uma chamada só
+```
+
+| Método | O que faz |
+|---|---|
+| `ProtonTable.get(nome)` / `ProtonTable.getAll()` | Uma aba (sem nome, a primeira) / todas, por nome. |
+| `aba.set(linha, coluna, valor)` | Grava uma célula na hora; `linha` é a `ProtonRow` ou o id dela. |
+| `aba.addRow(Map)` / `aba.addRows(List)` | Inclui linhas no fim, numa chamada. |
+| `aba.addColumn(nome)` / `aba.addColumns(List)` | Cria colunas no fim, só nesta execução. |
+| `aba.getColumn(nome)`, `aba.toJson()` | Os valores de uma coluna; a aba inteira em JSON. |
+| `aba.download(ProtonFormat.XLSX)` | Baixa a aba como está na execução (só no Proton). |
+| `ProtonTable.create(nome, colunas)` | Cria uma aba só nesta execução. |
+
+Escrita que falha lança `ProtonTableException`, com o motivo em `getReason()`
+(`columnNotFound`, `runAlreadyFinished`...). Limites: 20 abas, 100 colunas, 10 mil linhas
+por aba.
+
+**Fora do Proton**, a tabela vem de um .csv, e as escritas ficam só na memória. O cenário
+aponta o dele (`"tabela": "tabelas/produtos.csv"`; a aba leva o nome do arquivo), e
+`PROTON_TABLE_FILE` (ou `-Dproton.table_file`) vale mais, para testar com outro arquivo,
+como um .csv exportado pela tela do dataset:
+
+```bash
+mvn test -Dcenario=compra-em-massa
+mvn test -Dcenario=compra-em-massa -Dproton.table_file=/caminho/produtos.csv
+```
+
+Para conferir o que foi gravado, a aba inteira vai em JSON para a pasta de evidências.
+
+No Proton, crie no dataset a aba `produtos` com as colunas `produto`, `status`, `preco` e
+`mensagem` (ou importe `cenarios/tabelas/produtos.csv`) e os passos `FazerLogin`,
+`AdicionarProdutosDaTabela` e `FinalizarCompra`, com `in_preco_esperado` na saída
+`out_total_dos_itens`. O resultado aparece na tabela da execução, na tela dela.
 
 ## Mobile
 

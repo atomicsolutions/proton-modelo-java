@@ -13,8 +13,8 @@ Python. Responda e escreva em português do Brasil.
   de tela e endereços de API ficam só aqui.
 - `src/main/java/.../apoio/`: configuração, sessões, evidências e execução dos cenários. Mude só se a tarefa pedir.
 - `src/test/java/.../CenariosTest.java`: roda os cenários da pasta `cenarios/`.
-- `src/test/java/.../TestProtonScript.java`: ponto de entrada do Proton, o único que importa
-  a SDK. Não mude o nome da classe: o runner procura `TestProtonScript`.
+- `src/test/java/.../TestProtonScript.java`: ponto de entrada do Proton. Não mude o nome da
+  classe: o runner procura `TestProtonScript`.
 - `cenarios/`: cenários em JSON, no formato de um dataset do Proton. O que tem
   `falha_esperada` falha de propósito (o `compra-com-falha-proposital`): não o conserte.
 
@@ -33,7 +33,8 @@ Python. Responda e escreva em português do Brasil.
   - `FalhaDeAmbiente` (de `apoio/`): o ambiente não deixou rodar (a sessão que não abre, o
     aparelho fora do ar), sempre com o erro original como causa;
   - qualquer outra (`AssertionError` para validação): falha técnica.
-- Nada em `src/main` importa `br.com.atomicsolutions` (a SDK do Proton); em `src/test`, só o
+- Nada em `src/main` importa `br.com.atomicsolutions` (a SDK do Proton), com uma exceção: o
+  componente que usa a tabela de dados importa `ProtonTable`. Em `src/test`, só o
   `TestProtonScript`, que traduz `FalhaDeNegocio` e `FalhaDeAmbiente` para a SDK.
 - Dados passam de um passo para outro só pelas saídas e entradas, nunca por campo estático.
 - O componente não abre nem fecha sessão: usa as páginas e os clientes, que pedem a sessão
@@ -44,6 +45,24 @@ Python. Responda e escreva em português do Brasil.
   `SessaoApi.evidenciaDaUltimaResposta("nome")`, e arquivo novo com
   `Evidencias.arquivo(nome, extensao)`, nunca num caminho fixo: no Proton, a pasta é a da
   execução (`evidencias/<id da execução>`). A evidência da falha é automática.
+
+## Tabela de dados
+
+O dataset pode ter uma tabela com abas (SDK 5.7.0 em diante). Cada execução recebe uma
+cópia, e o script lê e grava só nela. O exemplo é o `AdicionarProdutosDaTabela`, no
+cenário `compra-em-massa-pela-tabela`.
+
+- Leitura: `ProtonTable.get("produtos")` (sem nome, a primeira aba) ou `ProtonTable.getAll()`.
+  Cada linha é uma `ProtonRow` (`linha.get("produto")`), e os valores são sempre texto.
+- Escrita linha a linha: `aba.set(linha, "status", "ok")`, que grava na hora. Em lote:
+  `aba.addRows(List.of(...))` e `aba.addColumns(List.of(...))`, numa chamada só. Aba nova só
+  na execução: `ProtonTable.create(nome, colunas)`.
+- Erro de uma linha (o produto que não existe) marca a linha e segue para a próxima.
+  `ProtonTableException` (coluna errada, execução terminada) relança: não adianta seguir.
+- A aba inteira vai como evidência (`aba.toJson()`), não como saída: a saída é texto curto.
+- Fora do Proton, o `"tabela"` do cenário (`cenarios/tabelas/produtos.csv`) ou
+  `PROTON_TABLE_FILE` (ou `-Dproton.table_file`) apontam o .csv, e as escritas ficam só na
+  memória.
 
 ## Plataforma nova
 
