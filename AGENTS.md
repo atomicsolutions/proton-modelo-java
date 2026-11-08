@@ -61,8 +61,8 @@ cenário `compra-em-massa-pela-tabela`.
   `ProtonTableException` (coluna errada, execução terminada) relança: não adianta seguir.
 - A aba inteira vai como evidência (`aba.toJson()`), não como saída: a saída é texto curto.
 - Fora do Proton, o `"tabela"` do cenário (`cenarios/tabelas/produtos.csv`) ou
-  `PROTON_TABLE_FILE` (ou `-Dproton.table_file`) apontam o .csv, e as escritas ficam só na
-  memória.
+  `PROTON_TABLE_FILE` (ou `-Dproton.table_file`) apontam o .csv ou o .xlsx, e as escritas
+  ficam só na memória.
 
 ## Plataforma nova
 

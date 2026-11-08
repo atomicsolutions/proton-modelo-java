@@ -222,14 +222,15 @@ Escrita que falha lança `ProtonTableException`, com o motivo em `getReason()`
 (`columnNotFound`, `runAlreadyFinished`...). Limites: 20 abas, 100 colunas, 10 mil linhas
 por aba.
 
-**Fora do Proton**, a tabela vem de um .csv, e as escritas ficam só na memória. O cenário
-aponta o dele (`"tabela": "tabelas/produtos.csv"`; a aba leva o nome do arquivo), e
-`PROTON_TABLE_FILE` (ou `-Dproton.table_file`) vale mais, para testar com outro arquivo,
-como um .csv exportado pela tela do dataset:
+**Fora do Proton**, a tabela vem de um .csv ou de um .xlsx (SDK 5.7.1 em diante; no .xlsx,
+cada planilha vira uma aba), e as escritas ficam só na memória. O cenário aponta o dele
+(`"tabela": "tabelas/produtos.csv"`; a aba leva o nome do arquivo), e `PROTON_TABLE_FILE`
+(ou `-Dproton.table_file`) vale mais, para testar com outro arquivo, como o .xlsx exportado
+pela tela do dataset:
 
 ```bash
 mvn test -Dcenario=compra-em-massa
-mvn test -Dcenario=compra-em-massa -Dproton.table_file=/caminho/produtos.csv
+mvn test -Dcenario=compra-em-massa -Dproton.table_file=/caminho/produtos.xlsx
 ```
 
 Para conferir o que foi gravado, a aba inteira vai em JSON para a pasta de evidências.
