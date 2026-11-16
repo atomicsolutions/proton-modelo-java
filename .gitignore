@@ -1,6 +1,7 @@
 target/
 .env
 evidencias/
+downloads/
 .idea/
 *.iml
 .vscode/

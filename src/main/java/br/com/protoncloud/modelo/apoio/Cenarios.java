@@ -46,6 +46,10 @@ import com.google.gson.JsonParser;
  * um aparelho conectado). Sem isso, o cenário é pulado, e não falha.
  * </p>
  * <p>
+ * {@code "tabela"} (opcional) é o arquivo da tabela de dados do cenário
+ * ({@code tabelas/produtos.csv}), no lugar da tabela que o dataset tem no Proton.
+ * </p>
+ * <p>
  * {@code "falha_esperada"} (opcional) marca o cenário que falha de propósito, com um trecho da
  * mensagem do erro. Fora do Proton ele conta como falha esperada; no Proton, o mesmo dataset
  * termina em Failed, com o log, o print e o erro do passo.
@@ -54,6 +58,7 @@ import com.google.gson.JsonParser;
 public final class Cenarios {
 
     private static final Logger log = LoggerFactory.getLogger(Cenarios.class);
+    private static final String ARQUIVO_DA_TABELA = "proton.table_file";
     private static final Pattern REFERENCIA = Pattern.compile("\\$\\{(env:)?([A-Za-z0-9_]+)}");
 
     private Cenarios() {
@@ -143,6 +148,38 @@ public final class Cenarios {
         JsonObject cenario = carregar(arquivo);
         log.info("Cenário: {}", cenario.has("descricao") ? cenario.get("descricao").getAsString() : arquivo.getFileName());
         Map<String, String> saidas = new HashMap<>();
+        boolean comTabela = usarTabelaDoCenario(cenario);
+
+        try {
+            executarPassos(cenario, saidas);
+        } finally {
+            if (comTabela) {
+                System.clearProperty(ARQUIVO_DA_TABELA);
+            }
+        }
+
+        return saidas;
+    }
+
+    /**
+     * A tabela de dados do cenário ({@code "tabela"}, um .csv relativo à pasta {@code cenarios/}),
+     * como o dataset do Proton tem a dele: fora do Proton, a SDK lê a tabela do arquivo de
+     * {@code PROTON_TABLE_FILE} (ou {@code -Dproton.table_file}), e as escritas ficam só na
+     * memória. Um arquivo já apontado vale mais que o do cenário.
+     */
+    private static boolean usarTabelaDoCenario(JsonObject cenario) {
+        boolean semArquivoApontado = System.getProperty(ARQUIVO_DA_TABELA, "").isBlank()
+            && (System.getenv("PROTON_TABLE_FILE") == null || System.getenv("PROTON_TABLE_FILE").isBlank());
+
+        if (!cenario.has("tabela") || !semArquivoApontado) {
+            return false;
+        }
+
+        System.setProperty(ARQUIVO_DA_TABELA, Config.pastaDeCenarios().resolve(cenario.get("tabela").getAsString()).toString());
+        return true;
+    }
+
+    private static void executarPassos(JsonObject cenario, Map<String, String> saidas) throws Exception {
         int numero = 0;
 
         for (JsonElement elemento : cenario.getAsJsonArray("passos")) {
@@ -171,8 +208,6 @@ public final class Cenarios {
                 saidas.putAll(geradas);
             }
         }
-
-        return saidas;
     }
 
     /**
